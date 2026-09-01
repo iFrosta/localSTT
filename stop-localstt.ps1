@@ -4,7 +4,12 @@ Get-CimInstance Win32_Process |
         ($_.CommandLine -like "*localstt.main*" -or $_.CommandLine -like "*C:\Apps\LocalSTT*") -and
         ($_.Name -in @("python.exe", "pythonw.exe"))
     } |
+    Sort-Object ProcessId -Unique |
     ForEach-Object {
-        Stop-Process -Id $_.ProcessId -Force
-        "Stopped LocalSTT process $($_.ProcessId)"
+        try {
+            Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop
+            "Stopped LocalSTT process $($_.ProcessId)"
+        } catch {
+            "LocalSTT process $($_.ProcessId) was already stopped"
+        }
     }

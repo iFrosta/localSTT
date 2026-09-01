@@ -16,6 +16,7 @@ if (Test-Path $configPath) {
 
 $config | Add-Member -NotePropertyName "ollama_model" -NotePropertyValue $Model -Force
 $config | Add-Member -NotePropertyName "ollama_timeout_seconds" -NotePropertyValue $TimeoutSeconds -Force
-$config | ConvertTo-Json -Depth 20 | Set-Content -Encoding UTF8 $configPath
+$json = $config | ConvertTo-Json -Depth 20
+[System.IO.File]::WriteAllText($configPath, $json, [System.Text.UTF8Encoding]::new($false))
 "Configured LocalSTT Ollama cleanup model: $Model"
 "Config: $configPath"

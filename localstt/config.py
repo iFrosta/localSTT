@@ -12,6 +12,7 @@ CONFIG_PATH = APPDATA_DIR / "config.json"
 LOG_DIR = APPDATA_DIR / "logs"
 LOG_PATH = LOG_DIR / "localstt.log"
 HISTORY_PATH = APPDATA_DIR / "history.jsonl"
+LAST_TRANSCRIPT_PATH = APPDATA_DIR / "last-transcript.txt"
 INSTALL_DIR = Path("C:/Apps/LocalSTT")
 DICTIONARY_PATH = INSTALL_DIR / "dictionary.json"
 
@@ -45,6 +46,7 @@ class AppConfig:
     )
     ollama_timeout_seconds: float = 20.0
     paste_restore_delay_seconds: float = 0.8
+    restore_clipboard_after_paste: bool = False
     hotkey_tap_seconds: float = 0.45
 
 
@@ -55,7 +57,7 @@ def load_config() -> AppConfig:
         save_config(cfg)
         return cfg
 
-    data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    data = json.loads(CONFIG_PATH.read_text(encoding="utf-8-sig"))
     defaults = asdict(AppConfig())
     defaults.update({k: v for k, v in data.items() if k in defaults})
     return AppConfig(**defaults)

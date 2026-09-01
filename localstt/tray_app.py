@@ -17,7 +17,7 @@ from pynput import keyboard
 
 from .api import create_app
 from .audio import AudioRecorder, list_microphones
-from .config import APPDATA_DIR, CONFIG_PATH, LOG_PATH, AppConfig, save_config
+from .config import APPDATA_DIR, CONFIG_PATH, LAST_TRANSCRIPT_PATH, LOG_PATH, AppConfig, save_config
 from .ollama_cleanup import polish_text
 from .service import STTService
 from .window_focus import get_foreground_window, set_foreground_window
@@ -219,26 +219,41 @@ class LocalSTTTrayApp:
 
     def _paste_text(self, text: str) -> None:
         old = pyperclip.paste()
-        pyperclip.copy(text)
+        LAST_TRANSCRIPT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        LAST_TRANSCRIPT_PATH.write_text(text, encoding="utf-8")
+        clipboard_ready = self._set_clipboard_text(text)
         hotkeys_released = self._wait_for_hotkeys_released()
         focused = set_foreground_window(self.target_hwnd)
         self.service.logger.info(
-            "pasting %s chars focused_target=%s hotkeys_released=%s",
+            "pasting %s chars focused_target=%s hotkeys_released=%s clipboard_ready=%s",
             len(text),
             focused,
             hotkeys_released,
+            clipboard_ready,
         )
         time.sleep(0.25)
         controller = keyboard.Controller()
         with controller.pressed(keyboard.Key.ctrl):
             controller.press("v")
             controller.release("v")
-        time.sleep(self.config.paste_restore_delay_seconds)
-        try:
-            if pyperclip.paste() == text:
-                pyperclip.copy(old)
-        except Exception:
-            self.service.logger.warning("clipboard restore failed", exc_info=True)
+        if self.config.restore_clipboard_after_paste:
+            time.sleep(self.config.paste_restore_delay_seconds)
+            try:
+                if pyperclip.paste() == text:
+                    pyperclip.copy(old)
+            except Exception:
+                self.service.logger.warning("clipboard restore failed", exc_info=True)
+
+    def _set_clipboard_text(self, text: str) -> bool:
+        for attempt in range(1, 6):
+            try:
+                pyperclip.copy(text)
+                if pyperclip.paste() == text:
+                    return True
+            except Exception as exc:
+                self.service.logger.warning("clipboard copy attempt %s failed: %s", attempt, exc)
+            time.sleep(0.05 * attempt)
+        return False
 
     def _wait_for_hotkeys_released(self) -> bool:
         deadline = time.perf_counter() + 1.5
@@ -257,6 +272,7 @@ class LocalSTTTrayApp:
             pystray.MenuItem("Model", pystray.Menu(*self._model_items())),
             pystray.MenuItem("CUDA diagnostics", self._run_diagnostics),
             pystray.MenuItem("History", self._open_history),
+            pystray.MenuItem("Last transcript", lambda *args: self._open_path(LAST_TRANSCRIPT_PATH)),
             pystray.MenuItem("Open logs", lambda *args: self._open_path(LOG_PATH)),
             pystray.MenuItem("Restart STT", self._restart),
             pystray.MenuItem("Exit", self._exit),

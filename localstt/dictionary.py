@@ -17,7 +17,7 @@ class DevelopmentDictionary:
     def load(cls, path: Path = DICTIONARY_PATH) -> "DevelopmentDictionary":
         if not path.exists():
             return cls(terms=[], replacements={})
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
         return cls(terms=list(data.get("terms", [])), replacements=dict(data.get("replacements", {})))
 
     def initial_prompt(self) -> str:
