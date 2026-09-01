@@ -1,0 +1,41 @@
+# Local runtime and caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local Python installation and virtual environments
+Python312/
+*.venv/
+.venv/
+venv/
+env/
+
+# Downloaded installers and generated logs
+downloads/
+diagnostics/python-install*.log
+diagnostics/*-run.txt
+diagnostics/benchmark-results.csv
+diagnostics/*.txt
+!diagnostics/package-versions.txt
+
+# Local app state lives in %APPDATA%\LocalSTT, but keep backups out too
+*.log
+history.jsonl
+config.local.json
+
+# Audio artifacts
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.ogg
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,16 @@
+faster-whisper
+ctranslate2
+sounddevice
+numpy
+pynput
+pyperclip
+pystray
+Pillow
+fastapi
+uvicorn
+python-multipart
+requests
+pydantic
+psutil
+nvidia-cublas-cu12
+nvidia-cudnn-cu12
