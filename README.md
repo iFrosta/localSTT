@@ -8,11 +8,31 @@ Local Windows faster-whisper dictation and OpenAI-compatible STT API.
 - Logs: `%APPDATA%\LocalSTT\logs\localstt.log`
 - API: `http://127.0.0.1:7777`
 
-Run CUDA diagnostics:
+Self-test:
+
+LocalSTT runs a self-test the first time it starts on a device it has not seen before,
+and repeats it until that device passes. It checks the NVIDIA driver version, the GPU's
+VRAM and compute capability, the CUDA runtime DLLs in the venv, that CTranslate2 sees a
+CUDA device, that the configured model and compute type fit in VRAM, the microphone, the
+API port, which voice commands this machine can run, and whether the Ollama cleanup model
+fits in the VRAM left over after Whisper.
+
+Only failures that make transcription impossible stop the app; a missing microphone or a
+busy port are reported and the app still starts. Run it any time from the tray menu
+(`Run self-test`) or from a console:
 
 ```powershell
-C:\Apps\LocalSTT\run-diagnostics.ps1
+C:\Apps\LocalSTT\.venv\Scripts\python.exe -m localstt.preflight
 ```
+
+The last result is kept in `%APPDATA%\LocalSTT\preflight.json`.
+
+Settings:
+
+`Settings` in the tray menu opens a window with every option in `config.json` grouped
+into sections, plus the command list and the self-test. `Open config.json` at the bottom
+still edits the file by hand. Changing the model, compute type or API port needs a
+restart; everything else applies on save.
 
 Run development app with console:
 
@@ -59,6 +79,26 @@ matches "Выключи подсветку." and "выключи подсвет�
 | `поставь таймер на * минут` | phrase around a capture |
 | `*blackout` | anywhere in the sentence (explicit opt-in, easier to trigger by accident) |
 
+Commands whose target is not installed on this machine are switched off automatically
+rather than failing when spoken: a `process` command whose executable is missing, a
+`.ps1` command with no `pwsh.exe`, or an unmet `requires` entry. The tray's
+`Settings -> Voice commands` page lists every command with the reason it is off, and its
+toggle writes `"enabled": false` back into `commands.json`.
+
+Command paths may use `%LOCALAPPDATA%`-style variables or a bare executable name resolved
+through `PATH`. A command may also declare what it needs:
+
+| `requires` entry | Satisfied when |
+| --- | --- |
+| `path:C:\tools\Thing.exe` | that file exists |
+| `exe:wsl.exe` | the name resolves through `PATH` |
+| `appx:Claude_pzs8sxrjxfjjc` | that Store package is installed |
+| `wsl:Ubuntu:claude` | `claude` is on the `PATH` inside the Ubuntu distro |
+
+Order matters. The matcher runs the first command whose phrase opens the sentence, and
+"открой терминал" opens "открой терминал ubuntu" as well, so the specific variants are
+listed before the general one.
+
 Only actions listed in `C:\Apps\LocalSTT\commands.json` can run. Speech never executes
 an arbitrary shell command. Command types:
 
@@ -69,6 +109,24 @@ an arbitrary shell command. Command types:
   the last dictated text again.
 - `microsoft_todo`: queued locally into `%APPDATA%\LocalSTT\todo-queue.jsonl` until
   Microsoft Graph is wired up.
+- `app_launch`: opens whatever application the capture names, without needing an entry of
+  its own. "Открой калькулятор", "запусти обсидиан", "открой чат гпт" all work.
+
+Application launching:
+
+`app_launch` matches against every app the Start menu can open -- desktop shortcuts, Store
+packages and registered app ids alike -- which Windows exposes through `Get-StartApps`.
+The index is cached in `%APPDATA%\LocalSTT\app-index.json` and rebuilt daily, or on
+demand from `Settings -> Voice commands -> Rebuild app index`.
+
+Because Whisper writes Russian speech in Cyrillic, spoken names of Latin-named apps are
+resolved through transliteration, fuzzy matching, and an alias file at
+`%APPDATA%\LocalSTT\app-aliases.json` (`Settings -> Voice commands -> Edit app names`).
+Add a line there for anything that resolves to the wrong app:
+
+```json
+{ "калькулятор": "Calculator", "клод": "Claude" }
+```
 
 Shipped commands: lighting blackout / default / Aura fix, monitors off, lock the
 workstation, sleep, open the install folder, switch language, switch delivery, repeat

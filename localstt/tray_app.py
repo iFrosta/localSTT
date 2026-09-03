@@ -27,7 +27,8 @@ from .command_runner import (
 from .config import APPDATA_DIR, COMMANDS_PATH, CONFIG_PATH, LAST_TRANSCRIPT_PATH, LOG_PATH, AppConfig, save_config
 from .ollama_cleanup import polish_text
 from .service import STTService
-from . import text_input
+from . import settings_window, text_input, tray_menu
+from .tray_menu import MenuItem, separator
 from .window_focus import get_foreground_window, set_foreground_window
 
 
@@ -54,13 +55,38 @@ COLORS = {
 # Set while the hotkey chord is still being typed and the mode is not decided yet.
 MODE_PENDING = "pending"
 
+# Windows fixes the size of the notification-area cell, so a tray icon can only look
+# bigger by filling more of its own bitmap. The original glyph covered 48 of 64 pixels;
+# 1.29 takes it to the edge, which is as large as it can get without clipping.
+ICON_GLYPH_SCALE = 1.29
+ICON_SIZE = 256
+
+
+class Win11TrayIcon(pystray.Icon):
+    """pystray shows the legacy Win32 menu; both clicks go to the Fluent one instead."""
+
+    def __init__(self, *args, on_menu, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._on_menu = on_menu
+
+    def _on_notify(self, wparam, lparam) -> None:
+        from pystray._util import win32
+
+        if lparam in (win32.WM_LBUTTONUP, win32.WM_RBUTTONUP):
+            # The popup can only dismiss itself on focus loss if the tray window is
+            # foreground first -- the same reason pystray does this for TrackPopupMenu.
+            win32.SetForegroundWindow(self._hwnd)
+            self._on_menu()
+
 
 class LocalSTTTrayApp:
     def __init__(self, config: AppConfig, service: STTService) -> None:
         self.config = config
         self.service = service
         self.state = AppState.LOADING
-        self.icon = pystray.Icon("LocalSTT", self._image(self.state), "LocalSTT", self._menu())
+        self.icon = Win11TrayIcon(
+            "LocalSTT", self._image(self.state), "LocalSTT", None, on_menu=self._show_menu
+        )
         self.recorder: AudioRecorder | None = None
         self.pressed: set[str] = set()
         self.recording_mode: str | None = None
@@ -550,75 +576,104 @@ class LocalSTTTrayApp:
             time.sleep(0.02)
         return False
 
-    def _menu(self) -> pystray.Menu:
-        return pystray.Menu(
-            pystray.MenuItem("Settings", lambda *args: self._open_path(CONFIG_PATH)),
-            pystray.MenuItem("Microphone", pystray.Menu(*self._microphone_items())),
-            pystray.MenuItem("Language", pystray.Menu(*self._language_items())),
-            pystray.MenuItem("Delivery", pystray.Menu(*self._delivery_items())),
-            pystray.MenuItem("Model", pystray.Menu(*self._model_items())),
-            pystray.MenuItem("CUDA diagnostics", self._run_diagnostics),
-            pystray.MenuItem("History", self._open_history),
-            pystray.MenuItem("Last transcript", lambda *args: self._open_path(LAST_TRANSCRIPT_PATH)),
-            pystray.MenuItem("Commands", lambda *args: self._open_path(COMMANDS_PATH)),
-            pystray.MenuItem("Command history", lambda *args: self._open_path(COMMAND_HISTORY_PATH)),
-            pystray.MenuItem(
+    def _show_menu(self) -> None:
+        tray_menu.popup(self._menu_items())
+
+    def _menu_items(self) -> list[MenuItem]:
+        return [
+            MenuItem("Settings", self._open_settings, icon="\ue713"),
+            MenuItem("Run self-test", self._run_selftest, icon="\ue9d9"),
+            separator(),
+            MenuItem("Language", icon="\uf2b7", submenu=self._language_items()),
+            MenuItem("Microphone", icon="\ue720", submenu=self._microphone_items()),
+            MenuItem("Delivery", icon="\ue765", submenu=self._delivery_items()),
+            MenuItem("Model", icon="\ue945", submenu=self._model_items()),
+            MenuItem(
                 "Command auto-stop",
                 self._toggle_command_auto_stop,
-                checked=lambda item: self.config.command_auto_stop,
+                icon="\ue916",
+                checked=self.config.command_auto_stop,
             ),
-            pystray.MenuItem("Open logs", lambda *args: self._open_path(LOG_PATH)),
-            pystray.MenuItem("Restart STT", self._restart),
-            pystray.MenuItem("Exit", self._exit),
-        )
-
-    def _microphone_items(self) -> list[pystray.MenuItem]:
-        items = []
-        for mic in list_microphones()[:20]:
-            label = f"{mic['index']}: {mic['name']}"
-            items.append(pystray.MenuItem(label, lambda *args, i=mic["index"]: self._set_microphone(i)))
-        return items or [pystray.MenuItem("No microphones found", lambda *args: None, enabled=False)]
-
-    def _model_items(self) -> list[pystray.MenuItem]:
-        return [pystray.MenuItem(m, lambda *args, name=m: self._set_model(name)) for m in self.config.allowed_models]
-
-    def _language_items(self) -> list[pystray.MenuItem]:
-        labels = {
-            "ru": "Russian",
-            "en": "English",
-            "auto": "Auto ru/en",
-        }
-        return [
-            pystray.MenuItem(
-                labels.get(lang, lang),
-                lambda *args, value=lang: self._set_language(value),
-                checked=lambda item, value=lang: self.config.language == value,
-                radio=True,
-            )
-            for lang in self.config.allowed_languages
+            separator(),
+            MenuItem("Last transcript", lambda: self._open_path(LAST_TRANSCRIPT_PATH), icon="\ue8a5"),
+            MenuItem("Command history", lambda: self._open_path(COMMAND_HISTORY_PATH), icon="\ue81c"),
+            MenuItem("Open logs", lambda: self._open_path(LOG_PATH), icon="\ue9d5"),
+            separator(),
+            MenuItem("Restart LocalSTT", self._restart, icon="\ue72c"),
+            MenuItem("Exit", self._exit, icon="\ue7e8"),
         ]
 
-    def _delivery_items(self) -> list[pystray.MenuItem]:
-        labels = {
-            "paste": "Paste",
-            "typewrite": "Typewrite",
-        }
+    def _microphone_items(self) -> list[MenuItem]:
+        items = [
+            MenuItem(
+                f"{mic['index']}: {mic['name']}",
+                (lambda index=mic["index"]: self._set_microphone(index)),
+                checked=self.config.microphone == mic["index"],
+                radio=True,
+            )
+            for mic in list_microphones()[:20]
+        ]
+        return items or [MenuItem("No microphones found", enabled=False)]
+
+    def _model_items(self) -> list[MenuItem]:
         return [
-            pystray.MenuItem(
+            MenuItem(
+                name,
+                (lambda value=name: self._set_model(value)),
+                checked=self.config.model == name,
+                radio=True,
+            )
+            for name in self.config.allowed_models
+        ]
+
+    def _language_items(self) -> list[MenuItem]:
+        labels = {"ru": "Russian", "en": "English", "auto": "Auto ru/en"}
+        return [
+            MenuItem(
+                labels.get(language, language),
+                (lambda value=language: self._set_language(value)),
+                checked=self.config.language == language,
+                radio=True,
+            )
+            for language in self.config.allowed_languages
+        ]
+
+    def _delivery_items(self) -> list[MenuItem]:
+        labels = {"paste": "Paste", "typewrite": "Typewrite"}
+        return [
+            MenuItem(
                 labels.get(method, method),
-                lambda *args, value=method: self._set_delivery_method(value),
-                checked=lambda item, value=method: self.config.delivery_method == value,
+                (lambda value=method: self._set_delivery_method(value)),
+                checked=self.config.delivery_method == method,
                 radio=True,
             )
             for method in ["paste", "typewrite"]
         ]
+
+    def _open_settings(self) -> None:
+        settings_window.open_settings(self.config, self.service.logger, self._on_settings_saved)
+
+    def _run_selftest(self) -> None:
+        settings_window.open_settings(
+            self.config, self.service.logger, self._on_settings_saved,
+            section="selftest", run_selftest=True,
+        )
+
+    def _on_settings_saved(self, keys: list[str]) -> None:
+        if "language" in keys:
+            self.service.backend.language = self.config.language
+        if "beam_size" in keys:
+            self.service.backend.beam_size = self.config.beam_size
+        if "vad_filter" in keys:
+            self.service.backend.vad_filter = self.config.vad_filter
+        self._notify("LocalSTT", "Settings saved")
 
     def _set_delivery_method(self, method: str) -> None:
         self.config.delivery_method = method
         save_config(self.config)
         self.service.logger.info("delivery method changed to %s", method)
         self._notify("LocalSTT delivery", method)
-    def _toggle_command_auto_stop(self, *args) -> None:
+    def _toggle_command_auto_stop(self) -> None:
         self.config.command_auto_stop = not self.config.command_auto_stop
         save_config(self.config)
         state = "on" if self.config.command_auto_stop else "off"
@@ -641,9 +696,6 @@ class LocalSTTTrayApp:
         save_config(self.config)
         self._restart()
 
-    def _run_diagnostics(self, *args) -> None:
-        subprocess.Popen([sys.executable, str(Path("C:/Apps/LocalSTT/diagnostics.py"))], cwd="C:/Apps/LocalSTT")
-
     def _open_history(self, *args) -> None:
         self._open_path(APPDATA_DIR / "history.jsonl")
 
@@ -661,11 +713,11 @@ class LocalSTTTrayApp:
                 self.service.logger.exception("failed to open %s in Notepad", path)
                 self._notify("LocalSTT", f"Could not open {path}")
 
-    def _restart(self, *args) -> None:
+    def _restart(self) -> None:
         subprocess.Popen([sys.executable, "-m", "localstt.main"], cwd="C:/Apps/LocalSTT")
         self._exit()
 
-    def _exit(self, *args) -> None:
+    def _exit(self) -> None:
         if self.listener:
             self.listener.stop()
         self.icon.stop()
@@ -683,11 +735,27 @@ class LocalSTTTrayApp:
             self.service.logger.debug("tray notification failed", exc_info=True)
 
     def _image(self, state: AppState) -> Image.Image:
-        image = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+        """The design lives on a 64px grid; ICON_SIZE only controls how crisply it renders."""
+        unit = ICON_SIZE / 64.0
+
+        def box(*points: float) -> tuple[float, ...]:
+            # Scale about the centre of the grid, so the glyph grows into its padding.
+            return tuple(((value - 32.0) * ICON_GLYPH_SCALE + 32.0) * unit for value in points)
+
+        image = Image.new("RGBA", (ICON_SIZE, ICON_SIZE), (0, 0, 0, 0))
         draw = ImageDraw.Draw(image)
-        draw.ellipse((8, 8, 56, 56), fill=COLORS[state], outline="#202020", width=3)
-        draw.rectangle((29, 18, 35, 43), fill="white")
-        draw.arc((21, 30, 43, 52), 0, 180, fill="white", width=4)
+        draw.ellipse(
+            box(8, 8, 56, 56),
+            fill=COLORS[state],
+            outline="#202020",
+            width=max(1, round(3 * ICON_GLYPH_SCALE * unit)),
+        )
+        draw.rectangle(box(29, 18, 35, 43), fill="white")
+        draw.arc(
+            box(21, 30, 43, 52), 0, 180,
+            fill="white",
+            width=max(1, round(4 * ICON_GLYPH_SCALE * unit)),
+        )
         return image
 
     def _key_name(self, key) -> str | None:
