@@ -67,14 +67,16 @@ class STTService:
         language: str | None = None,
         response_format: str = "json",
         beam_size: int | None = None,
+        record: bool = True,
     ) -> TranscriptionResult:
         with self.lock:
             result = self.backend.transcribe(audio, language=language, beam_size=beam_size)
         result.text = self.dictionary.apply(result.text)
-        self.metrics.transcription_count += 1
-        self.metrics.total_audio_duration += result.duration
-        self.metrics.total_processing_time += result.processing_time
-        self._record_history(result)
+        if record:
+            self.metrics.transcription_count += 1
+            self.metrics.total_audio_duration += result.duration
+            self.metrics.total_processing_time += result.processing_time
+            self._record_history(result)
         self.logger.info(
             "transcribed duration=%.2fs processing=%.2fs rtf=%.3f text=%r",
             result.duration,

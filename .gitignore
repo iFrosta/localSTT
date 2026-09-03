@@ -24,6 +24,9 @@ diagnostics/*.txt
 
 # Local app state lives in %APPDATA%\LocalSTT, but keep backups out too
 *.log
+*.bak
+*.bak-*
+*.orig
 history.jsonl
 config.local.json
 
