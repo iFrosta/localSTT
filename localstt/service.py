@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from . import performance
 from .backends import FasterWhisperBackend, TranscriptionResult
 from .config import AppConfig, HISTORY_PATH
 from .dictionary import DevelopmentDictionary
@@ -77,6 +78,8 @@ class STTService:
             self.metrics.total_audio_duration += result.duration
             self.metrics.total_processing_time += result.processing_time
             self._record_history(result)
+            if self.config.performance_tracking:
+                performance.record_transcription(result, self.config, self.metrics_snapshot())
         self.logger.info(
             "transcribed duration=%.2fs processing=%.2fs rtf=%.3f text=%r",
             result.duration,

@@ -13,6 +13,7 @@ bridges the two.
 from __future__ import annotations
 
 import ctypes
+import math
 import queue
 import threading
 from ctypes import wintypes
@@ -273,14 +274,41 @@ FONT_FAMILY_DISPLAY = "Segoe UI Variable Display"
 FONT_FALLBACK = "Segoe UI"
 
 
+def _arc_points(cx: float, cy: float, r: float, start: float, end: float, steps: int) -> list[float]:
+    points: list[float] = []
+    for index in range(steps + 1):
+        angle = math.radians(start + (end - start) * index / steps)
+        points.extend((cx + r * math.cos(angle), cy + r * math.sin(angle)))
+    return points
+
+
+def rounded_points(x1: float, y1: float, x2: float, y2: float, r: float) -> list[float]:
+    """The outline of a rounded rectangle, sampled along its corners.
+
+    Tk's `smooth=True` fits a spline through the corner points, which visibly falls short
+    of a real quarter circle -- and at r = height/2 it produces a lozenge rather than a
+    pill. Sampling the arcs gives the true shape for both fills and outlines.
+    """
+    r = max(0.0, min(r, (x2 - x1) / 2, (y2 - y1) / 2))
+    if r <= 0:
+        return [x1, y1, x2, y1, x2, y2, x1, y2]
+
+    steps = max(4, min(24, int(r / 1.5)))
+    return (
+        _arc_points(x2 - r, y1 + r, r, -90, 0, steps)
+        + _arc_points(x2 - r, y2 - r, r, 0, 90, steps)
+        + _arc_points(x1 + r, y2 - r, r, 90, 180, steps)
+        + _arc_points(x1 + r, y1 + r, r, 180, 270, steps)
+    )
+
+
 def round_rect(canvas, x1: float, y1: float, x2: float, y2: float, r: float, **kwargs):
-    """A smoothed polygon is the only way to get a rounded fill on a Tk canvas."""
-    points = [
-        x1 + r, y1, x2 - r, y1, x2, y1, x2, y1 + r,
-        x2, y2 - r, x2, y2, x2 - r, y2, x1 + r, y2,
-        x1, y2, x1, y2 - r, x1, y1 + r, x1, y1,
-    ]
-    return canvas.create_polygon(points, smooth=True, **kwargs)
+    return canvas.create_polygon(rounded_points(x1, y1, x2, y2, r), smooth=False, **kwargs)
+
+
+def pill(canvas, x1: float, y1: float, x2: float, y2: float, **kwargs):
+    """A stadium shape: the toggle track, and anything else fully rounded."""
+    return round_rect(canvas, x1, y1, x2, y2, (y2 - y1) / 2.0, **kwargs)
 
 
 class UiThread:

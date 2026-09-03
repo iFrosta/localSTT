@@ -79,19 +79,35 @@ class Card(tk.Frame):
 
 
 class ToggleSwitch(tk.Canvas):
-    """The Windows 11 pill switch."""
+    """The Windows 11 pill switch.
+
+    Tk's canvas does not anti-alias, and a rounded polygon at this size reads as a
+    lozenge with stepped edges. Pillow renders the same shape supersampled instead, so
+    the track and knob come out as smooth as the system's own.
+    """
+
+    # Windows 11 proportions: a 40x20 track with a 12px knob that grows on hover.
+    TRACK_WIDTH = 40
+    TRACK_HEIGHT = 20
+    KNOB_RADIUS = 6
+    KNOB_RADIUS_HOVER = 7
+    SUPERSAMPLE = 4
 
     def __init__(self, parent: tk.Misc, theme: Theme, value: bool, on_change: Callable[[bool], None]):
         self.theme = theme
         self.value = bool(value)
         self.on_change = on_change
-        self._width = theme.px(40)
-        self._height = theme.px(20)
+        self._hover = False
+        self._photo = None
+        self._width = theme.px(self.TRACK_WIDTH)
+        self._height = theme.px(self.TRACK_HEIGHT)
         super().__init__(
             parent, width=self._width, height=self._height,
-            bg=theme.colors.card, highlightthickness=0, bd=0, cursor="hand2",
+            bg=parent["bg"], highlightthickness=0, bd=0, cursor="hand2",
         )
         self.bind("<Button-1>", self._toggle)
+        self.bind("<Enter>", lambda e: self._set_hover(True))
+        self.bind("<Leave>", lambda e: self._set_hover(False))
         self._draw()
 
     def _toggle(self, _event=None) -> None:
@@ -103,22 +119,70 @@ class ToggleSwitch(tk.Canvas):
         self.value = bool(value)
         self._draw()
 
+    def _set_hover(self, hover: bool) -> None:
+        self._hover = hover
+        self._draw()
+
     def _draw(self) -> None:
         self.delete("all")
+        photo = self._render()
+        if photo is not None:
+            self._photo = photo  # Tk keeps only a weak reference to the image
+            self.create_image(0, 0, image=photo, anchor="nw")
+            return
+        self._draw_vector()
+
+    def _geometry(self) -> tuple[str, str | None, str, float, float]:
+        """track outline, track fill, knob colour, knob centre x, knob radius."""
         colors = self.theme.colors
-        radius = self._height / 2
+        knob_radius = self.theme.px(
+            self.KNOB_RADIUS_HOVER if self._hover else self.KNOB_RADIUS
+        )
+        track_radius = self._height / 2
         if self.value:
-            winui.round_rect(self, 1, 1, self._width - 1, self._height - 1, radius,
-                             fill=colors.accent, outline=colors.accent)
-            knob_fill = colors.on_accent
-            cx = self._width - radius
-        else:
-            winui.round_rect(self, 1, 1, self._width - 1, self._height - 1, radius,
-                             fill=colors.window, outline=colors.text_secondary)
-            knob_fill = colors.text_secondary
-            cx = radius
-        r = self.theme.px(6)
-        self.create_oval(cx - r, radius - r, cx + r, radius + r, fill=knob_fill, outline="")
+            return colors.accent, colors.accent, colors.on_accent, self._width - track_radius, knob_radius
+        return colors.text_secondary, None, colors.text_secondary, track_radius, knob_radius
+
+    def _render(self):
+        try:
+            from PIL import Image, ImageDraw, ImageTk
+        except ImportError:
+            return None
+
+        scale = self.SUPERSAMPLE
+        width, height = self._width * scale, self._height * scale
+        outline, fill, knob, knob_cx, knob_r = self._geometry()
+
+        image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        border = max(1, round(self.theme.px(1) * scale))
+        draw.rounded_rectangle(
+            [border / 2, border / 2, width - border / 2 - 1, height - border / 2 - 1],
+            radius=height / 2,
+            fill=fill,
+            outline=outline,
+            width=border,
+        )
+        cx, cy, r = knob_cx * scale, height / 2, knob_r * scale
+        draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=knob)
+
+        image = image.resize((self._width, self._height), Image.LANCZOS)
+        try:
+            return ImageTk.PhotoImage(image, master=self)
+        except Exception:
+            return None
+
+    def _draw_vector(self) -> None:
+        """Fallback for a machine where Pillow is not installed yet."""
+        outline, fill, knob, knob_cx, knob_r = self._geometry()
+        winui.pill(
+            self, 1, 1, self._width - 1, self._height - 1,
+            fill=fill or self["bg"], outline=outline,
+        )
+        cy = self._height / 2
+        self.create_oval(
+            knob_cx - knob_r, cy - knob_r, knob_cx + knob_r, cy + knob_r, fill=knob, outline=""
+        )
 
 
 class Button(tk.Canvas):

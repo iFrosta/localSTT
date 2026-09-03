@@ -3,7 +3,7 @@
 Local Windows faster-whisper dictation and OpenAI-compatible STT API.
 
 - Install dir: `C:\Apps\LocalSTT`
-- Venv: `C:\Apps\LocalSTT.venv`
+- Venv: `C:\Apps\LocalSTT\.venv`
 - Config: `%APPDATA%\LocalSTT\config.json`
 - Logs: `%APPDATA%\LocalSTT\logs\localstt.log`
 - API: `http://127.0.0.1:7777`
@@ -30,9 +30,22 @@ The last result is kept in `%APPDATA%\LocalSTT\preflight.json`.
 Settings:
 
 `Settings` in the tray menu opens a window with every option in `config.json` grouped
-into sections, plus the command list and the self-test. `Open config.json` at the bottom
-still edits the file by hand. Changing the model, compute type or API port needs a
-restart; everything else applies on save.
+into sections, plus the command list, the history, the timings and the self-test.
+`Open config.json` at the bottom still edits the file by hand. Changing the model,
+compute type or API port needs a restart; everything else applies on save.
+
+History is off by default: with it on, every transcript is appended to
+`%APPDATA%\LocalSTT\history.jsonl` and listed in `Settings -> History` by date, in the
+order it was recorded.
+
+Performance:
+
+`Settings -> Performance` shows how long the last dictation took. Recognition speed is
+reported as the real-time factor -- processing time over the length of the audio -- and
+as the multiple of real time it achieves. Characters per second is shown too but means
+little: it mostly measures how fast the speaker talks. The cleanup step is a language
+model, so it is measured in tokens per second, taken from Ollama's own counters.
+Turn `Measure performance` off to stop writing `performance.json`.
 
 Run development app with console:
 
@@ -165,21 +178,36 @@ Transcribe a file:
 C:\Apps\LocalSTT\transcribe-file.ps1 C:\path\sample.wav
 ```
 
-Install or remove per-user autostart:
+Autostart:
+
+`Settings -> General -> Start with Windows` adds or removes the Startup shortcut, and
+takes effect immediately. The same thing from a console:
 
 ```powershell
 C:\Apps\LocalSTT\install-autostart.ps1
 C:\Apps\LocalSTT\uninstall-autostart.ps1
 ```
 
-Recommended local cleanup model:
+Cleanup model:
+
+Cleanup dictation runs an Ollama model on the same GPU as Whisper, so the right model is
+whatever fits in the VRAM left over -- on a 4 GB card that is under 2 GB. Let LocalSTT
+pick and download one:
 
 ```powershell
 C:\Apps\LocalSTT\install-qwen-cleanup-model.ps1
 ```
 
-Or configure an already installed Ollama model:
+To see the choice without changing anything:
 
 ```powershell
-C:\Apps\LocalSTT\set-ollama-cleanup-model.ps1 -Model qwen3:4b-instruct -TimeoutSeconds 60
+C:\Apps\LocalSTT\.venv\Scripts\python.exe -m localstt.cleanup_model
 ```
+
+To override it explicitly, adding `-Pull` if it still has to be downloaded:
+
+```powershell
+C:\Apps\LocalSTT\set-ollama-cleanup-model.ps1 -Model qwen3.5:0.8b -TimeoutSeconds 60
+```
+
+`Settings -> AI cleanup` shows the same recommendation with a download button.

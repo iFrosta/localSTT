@@ -12,7 +12,7 @@ from pathlib import Path
 import pyperclip
 import pystray
 import uvicorn
-from PIL import Image, ImageDraw
+from PIL import Image
 from pynput import keyboard
 
 from .api import create_app
@@ -27,7 +27,7 @@ from .command_runner import (
 from .config import APPDATA_DIR, COMMANDS_PATH, CONFIG_PATH, LAST_TRANSCRIPT_PATH, LOG_PATH, AppConfig, save_config
 from .ollama_cleanup import polish_text
 from .service import STTService
-from . import settings_window, text_input, tray_menu
+from . import branding, settings_window, text_input, tray_menu
 from .tray_menu import MenuItem, separator
 from .window_focus import get_foreground_window, set_foreground_window
 
@@ -55,11 +55,6 @@ COLORS = {
 # Set while the hotkey chord is still being typed and the mode is not decided yet.
 MODE_PENDING = "pending"
 
-# Windows fixes the size of the notification-area cell, so a tray icon can only look
-# bigger by filling more of its own bitmap. The original glyph covered 48 of 64 pixels;
-# 1.29 takes it to the edge, which is as large as it can get without clipping.
-ICON_GLYPH_SCALE = 1.29
-ICON_SIZE = 256
 
 
 class Win11TrayIcon(pystray.Icon):
@@ -582,7 +577,6 @@ class LocalSTTTrayApp:
     def _menu_items(self) -> list[MenuItem]:
         return [
             MenuItem("Settings", self._open_settings, icon="\ue713"),
-            MenuItem("Run self-test", self._run_selftest, icon="\ue9d9"),
             separator(),
             MenuItem("Language", icon="\uf2b7", submenu=self._language_items()),
             MenuItem("Microphone", icon="\ue720", submenu=self._microphone_items()),
@@ -652,12 +646,6 @@ class LocalSTTTrayApp:
 
     def _open_settings(self) -> None:
         settings_window.open_settings(self.config, self.service.logger, self._on_settings_saved)
-
-    def _run_selftest(self) -> None:
-        settings_window.open_settings(
-            self.config, self.service.logger, self._on_settings_saved,
-            section="selftest", run_selftest=True,
-        )
 
     def _on_settings_saved(self, keys: list[str]) -> None:
         if "language" in keys:
@@ -735,28 +723,7 @@ class LocalSTTTrayApp:
             self.service.logger.debug("tray notification failed", exc_info=True)
 
     def _image(self, state: AppState) -> Image.Image:
-        """The design lives on a 64px grid; ICON_SIZE only controls how crisply it renders."""
-        unit = ICON_SIZE / 64.0
-
-        def box(*points: float) -> tuple[float, ...]:
-            # Scale about the centre of the grid, so the glyph grows into its padding.
-            return tuple(((value - 32.0) * ICON_GLYPH_SCALE + 32.0) * unit for value in points)
-
-        image = Image.new("RGBA", (ICON_SIZE, ICON_SIZE), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(image)
-        draw.ellipse(
-            box(8, 8, 56, 56),
-            fill=COLORS[state],
-            outline="#202020",
-            width=max(1, round(3 * ICON_GLYPH_SCALE * unit)),
-        )
-        draw.rectangle(box(29, 18, 35, 43), fill="white")
-        draw.arc(
-            box(21, 30, 43, 52), 0, 180,
-            fill="white",
-            width=max(1, round(4 * ICON_GLYPH_SCALE * unit)),
-        )
-        return image
+        return branding.render_icon(COLORS[state])
 
     def _key_name(self, key) -> str | None:
         if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r):

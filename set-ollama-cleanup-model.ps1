@@ -1,22 +1,18 @@
+# Overrides the cleanup model explicitly. Without -Pull the model has to be installed
+# already; the script reports what fits on this GPU either way.
 param(
     [Parameter(Mandatory=$true)]
     [string]$Model,
-    [double]$TimeoutSeconds = 60
+    [double]$TimeoutSeconds = 60,
+    [switch]$Pull
 )
 $ErrorActionPreference = "Stop"
-$configDir = Join-Path $env:APPDATA "LocalSTT"
-$configPath = Join-Path $configDir "config.json"
-New-Item -ItemType Directory -Force -Path $configDir | Out-Null
-
-if (Test-Path $configPath) {
-    $config = Get-Content $configPath -Raw | ConvertFrom-Json
-} else {
-    $config = [pscustomobject]@{}
+$python = "C:\Apps\LocalSTT\.venv\Scripts\python.exe"
+if (-not (Test-Path $python)) {
+    throw "LocalSTT venv not found: $python"
 }
+Set-Location "C:\Apps\LocalSTT"
 
-$config | Add-Member -NotePropertyName "ollama_model" -NotePropertyValue $Model -Force
-$config | Add-Member -NotePropertyName "ollama_timeout_seconds" -NotePropertyValue $TimeoutSeconds -Force
-$json = $config | ConvertTo-Json -Depth 20
-[System.IO.File]::WriteAllText($configPath, $json, [System.Text.UTF8Encoding]::new($false))
-"Configured LocalSTT Ollama cleanup model: $Model"
-"Config: $configPath"
+$arguments = @("-m", "localstt.cleanup_model", "--model", $Model, "--apply", "--timeout", $TimeoutSeconds)
+if ($Pull) { $arguments += "--pull" }
+& $python @arguments

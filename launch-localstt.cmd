@@ -1,7 +1,7 @@
 @echo off
 setlocal
 set "APP_DIR=C:\Apps\LocalSTT"
-set "PYTHON=C:\Apps\LocalSTT.venv\Scripts\python.exe"
+set "PYTHON=C:\Apps\LocalSTT\.venv\Scripts\python.exe"
 set "LOG_DIR=%APPDATA%\LocalSTT\logs"
 set "BOOTSTRAP_LOG=%LOG_DIR%\localstt-bootstrap.log"
 

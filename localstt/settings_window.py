@@ -14,9 +14,9 @@ import tkinter as tk
 from dataclasses import dataclass, field as dataclass_field
 from typing import Any, Callable
 
-from . import app_index, preflight, winui
+from . import app_index, autostart, branding, cleanup_model, performance, preflight, winui
 from .command_runner import clear_availability_cache, command_statuses
-from .config import COMMANDS_PATH, CONFIG_PATH, AppConfig, save_config
+from .config import COMMANDS_PATH, CONFIG_PATH, HISTORY_PATH, AppConfig, save_config
 from .widgets import Button, Card, Dropdown, SettingRow, TextField, Theme, ToggleSwitch
 
 RESTART_NOTE = "Applied when LocalSTT restarts."
@@ -33,6 +33,10 @@ class Field:
     parse: Callable[[str], Any] | None = None
     display: Callable[[Any], str] | None = None
     restart: bool = False
+    # Settings that are not config.json fields (autostart) read and write through these,
+    # and apply immediately instead of waiting for Save.
+    getter: Callable[[], Any] | None = None
+    setter: Callable[[Any], bool] | None = None
 
 
 @dataclass
@@ -81,7 +85,7 @@ def _ollama_options(config: AppConfig, gpu_total_gb: float | None) -> tuple[list
     return options, labels
 
 
-def build_sections(config: AppConfig, gpu_total_gb: float | None) -> list[Section]:
+def build_sections(config: AppConfig, gpu_total_gb: float | None, logger) -> list[Section]:
     mic_options, mic_labels = _microphone_options()
     ollama_options, ollama_labels = _ollama_options(config, gpu_total_gb)
 
@@ -105,8 +109,11 @@ def build_sections(config: AppConfig, gpu_total_gb: float | None) -> list[Sectio
                   kind="number"),
             Field("vad_filter", "Voice activity filter", "Drops silence before transcription.",
                   kind="toggle"),
-            Field("history_enabled", "Keep history", "Append every transcript to history.jsonl.",
-                  kind="toggle"),
+            Field("autostart", "Start with Windows",
+                  "Adds a shortcut to the Startup folder. Applied immediately.",
+                  kind="toggle",
+                  getter=autostart.is_enabled,
+                  setter=lambda value: autostart.set_enabled(value, logger)),
         ]),
         Section("audio", "Audio", "", fields=[
             Field("microphone", "Microphone", kind="choice", options=mic_options, labels=mic_labels,
@@ -142,12 +149,24 @@ def build_sections(config: AppConfig, gpu_total_gb: float | None) -> list[Sectio
             Field("command_min_audio_seconds", "Minimum audio length", kind="number"),
             Field("command_silence_rms", "Silence threshold (RMS)", kind="number"),
         ]),
-        Section("cleanup", "AI cleanup", "", fields=[
+        Section("cleanup", "AI cleanup", "", custom="cleanup", fields=[
             Field("ollama_model", "Cleanup model",
                   "Runs on the same GPU as Whisper, so it has to fit in what is left.",
                   kind="choice", options=ollama_options, labels=ollama_labels),
             Field("ollama_base_url", "Ollama address"),
             Field("ollama_timeout_seconds", "Request timeout", kind="number"),
+        ]),
+        Section("history", "History", "\ue81c", custom="history", fields=[
+            Field("history_enabled", "Keep a history of dictations",
+                  "Records every transcript with its date and time. Off by default: "
+                  "everything you dictate would otherwise be stored on disk.",
+                  kind="toggle"),
+        ]),
+        Section("performance", "Performance", "\ue916", custom="performance", fields=[
+            Field("performance_tracking", "Measure performance",
+                  "Records how long the last dictation and cleanup took. Turn it off to "
+                  "stop writing performance.json.",
+                  kind="toggle"),
         ]),
         Section("api", "API", "", fields=[
             Field("api_host", "Host", restart=True),
@@ -168,7 +187,7 @@ class SettingsWindow:
 
         gpu = preflight._query_gpu()
         self.gpu_total_gb = gpu["total_gb"] if gpu else None
-        self.sections = build_sections(config, self.gpu_total_gb)
+        self.sections = build_sections(config, self.gpu_total_gb, logger)
 
         root = winui.UiThread.instance().root
         self.window = tk.Toplevel(root)
@@ -180,6 +199,10 @@ class SettingsWindow:
         self.window.geometry(f"{self.theme.px(1000)}x{self.theme.px(700)}")
         self.window.minsize(self.theme.px(760), self.theme.px(520))
         self.window.protocol("WM_DELETE_WINDOW", self.close)
+        try:
+            self.window.iconbitmap(default=str(branding.icon_file()))
+        except Exception:  # Pillow may be missing on the machine this report is about
+            logger.debug("window icon unavailable", exc_info=True)
 
         self._build()
         self.window.update_idletasks()
@@ -346,11 +369,27 @@ class SettingsWindow:
         self._render_fields(section)
         if section.custom == "commands":
             self._render_commands()
+        elif section.custom == "cleanup":
+            self._render_cleanup()
+        elif section.custom == "performance":
+            self._render_performance()
+        elif section.custom == "history":
+            self._render_history()
 
     def _value_of(self, field: Field) -> Any:
+        if field.getter is not None:
+            return field.getter()
         if field.key in self.pending:
             return self.pending[field.key]
         return getattr(self.config, field.key)
+
+    def _apply_now(self, field: Field, value: Any, control) -> None:
+        """Fields backed by the system, not the config file, take effect on the spot."""
+        if field.setter is not None and field.setter(value):
+            self.status.configure(text=f"{field.title}: {'on' if value else 'off'}")
+            return
+        control.set(self._value_of(field))
+        self.status.configure(text=f"{field.title} could not be changed")
 
     def _stage(self, field: Field, value: Any) -> None:
         self.pending[field.key] = value
@@ -375,8 +414,13 @@ class SettingsWindow:
         value = self._value_of(field)
 
         if field.kind == "toggle":
-            ToggleSwitch(parent, self.theme, bool(value),
-                         lambda v, f=field: self._stage(f, v)).pack()
+            toggle = ToggleSwitch(parent, self.theme, bool(value), lambda _v: None)
+            toggle.on_change = (
+                (lambda v, f=field, c=toggle: self._apply_now(f, v, c))
+                if field.setter is not None
+                else (lambda v, f=field: self._stage(f, v))
+            )
+            toggle.pack()
             return
 
         if field.kind == "choice":
@@ -463,6 +507,242 @@ class SettingsWindow:
             )
 
         _run_off_ui(work)
+
+    # ------------------------------------------------------------------ cleanup model
+
+    def _render_cleanup(self) -> None:
+        """What this GPU can actually run, and a way to get it if nothing here fits."""
+        px = self.theme.px
+        colors = self.theme.colors
+        gpu = {"total_gb": self.gpu_total_gb} if self.gpu_total_gb else None
+        choice = preflight.recommend_cleanup_model(self.config, gpu)
+
+        card = Card(self.content, self.theme)
+        card.pack_card(pady=(px(8), px(6)))
+        row = SettingRow(card, self.theme, "What fits on this GPU", choice.note)
+        row.pack(fill="x")
+
+        if not choice.reachable:
+            return
+        if choice.pull:
+            Button(
+                row.control_area, self.theme, f"Download {choice.pull}",
+                lambda name=choice.pull: self._pull_cleanup_model(name),
+                primary=True, background=colors.card,
+            ).pack()
+        elif choice.best_installed and choice.best_installed != self.config.ollama_model:
+            Button(
+                row.control_area, self.theme, f"Use {choice.best_installed}",
+                lambda name=choice.best_installed: self._use_cleanup_model(name),
+                primary=True, background=colors.card,
+            ).pack()
+
+    def _use_cleanup_model(self, name: str) -> None:
+        self.config.ollama_model = name
+        save_config(self.config)
+        self.status.configure(text=f"cleanup model set to {name}")
+        self._show_section("cleanup")
+
+    def _pull_cleanup_model(self, name: str) -> None:
+        self.status.configure(text=f"downloading {name}... this can take a while")
+
+        def work() -> None:
+            ok = cleanup_model.pull(name, self.logger)
+            if ok:
+                self.config.ollama_model = name
+                save_config(self.config)
+
+            def show() -> None:
+                self.status.configure(
+                    text=f"cleanup model set to {name}" if ok else f"could not download {name}"
+                )
+                self._show_section("cleanup")
+
+            winui.UiThread.instance().submit(show)
+
+        _run_off_ui(work)
+
+    # ------------------------------------------------------------------ history
+
+    HISTORY_LIMIT = 200
+
+    def _load_history(self) -> list[dict[str, Any]]:
+        """The most recent entries, kept in the order they were recorded."""
+        if not HISTORY_PATH.exists():
+            return []
+        try:
+            lines = HISTORY_PATH.read_text(encoding="utf-8-sig").splitlines()
+        except OSError:
+            return []
+
+        rows: list[dict[str, Any]] = []
+        for line in lines[-self.HISTORY_LIMIT :]:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
+        return rows
+
+    def _render_history(self) -> None:
+        px = self.theme.px
+        colors = self.theme.colors
+
+        tools = tk.Frame(self.content, bg=colors.window)
+        tools.pack(fill="x", pady=(px(10), px(8)))
+        Button(tools, self.theme, "Open history.jsonl", lambda: _open_path(HISTORY_PATH),
+               background=colors.window).pack(side="left")
+        self._clear_button = Button(
+            tools, self.theme, "Clear history", self._clear_history, background=colors.window
+        )
+        self._clear_button.pack(side="left", padx=px(8))
+        self._clear_armed = False
+
+        rows = self._load_history()
+        if not rows:
+            tk.Label(
+                self.content,
+                text=(
+                    "No dictations recorded."
+                    if self.config.history_enabled
+                    else "History is off, so nothing is being recorded."
+                ),
+                font=self.theme.font, bg=colors.window, fg=colors.text_secondary, anchor="w",
+            ).pack(fill="x", pady=px(8))
+            return
+
+        current_day = None
+        for row in rows:
+            timestamp = str(row.get("ts", ""))
+            day, _, clock = timestamp.partition("T")
+            if day != current_day:
+                current_day = day
+                tk.Label(
+                    self.content, text=day or "unknown date", font=self.theme.font_bold,
+                    bg=colors.window, fg=colors.text, anchor="w",
+                ).pack(fill="x", pady=(px(10), px(4)))
+
+            card = Card(self.content, self.theme, padding=12)
+            card.pack_card(pady=(0, px(4)))
+
+            duration = float(row.get("duration", 0.0) or 0.0)
+            processing = float(row.get("processing_time", 0.0) or 0.0)
+            meta = f"{clock or '--'}   {row.get('language', '?')}   {duration:.1f}s audio, {processing:.2f}s to transcribe"
+            tk.Label(
+                card, text=str(row.get("text", "")).strip() or "(empty)",
+                font=self.theme.font, bg=colors.card, fg=colors.text,
+                anchor="w", justify="left", wraplength=px(560),
+            ).pack(anchor="w")
+            tk.Label(
+                card, text=meta, font=self.theme.font_small, bg=colors.card,
+                fg=colors.text_secondary, anchor="w",
+            ).pack(anchor="w", pady=(px(2), 0))
+
+        tk.Frame(self.content, bg=colors.window, height=px(16)).pack(fill="x")
+
+    def _clear_history(self) -> None:
+        """Deleting transcripts is not undoable, so the first click only arms it."""
+        if not self._clear_armed:
+            self._clear_armed = True
+            self._clear_button.text = "Click again to delete"
+            self._clear_button._draw()
+            self.status.configure(text="this permanently deletes every recorded transcript")
+            return
+        try:
+            HISTORY_PATH.unlink(missing_ok=True)
+            self.status.configure(text="history deleted")
+            self.logger.info("history cleared from the settings window")
+        except OSError as exc:
+            self.status.configure(text=f"could not delete history: {exc}")
+        self._show_section("history")
+
+    # ------------------------------------------------------------------ performance
+
+    def _stat_card(self, parent: tk.Misc, title: str, lines: list[str]) -> None:
+        px = self.theme.px
+        colors = self.theme.colors
+        card = Card(parent, self.theme)
+        card.pack_card(pady=(0, px(6)))
+        tk.Label(
+            card, text=title, font=self.theme.font_bold,
+            bg=colors.card, fg=colors.text, anchor="w",
+        ).pack(anchor="w")
+        for index, line in enumerate(lines):
+            tk.Label(
+                card, text=line,
+                font=self.theme.font if index == 0 else self.theme.font_small,
+                bg=colors.card,
+                fg=colors.text if index == 0 else colors.text_secondary,
+                anchor="w", justify="left", wraplength=px(560),
+            ).pack(anchor="w", pady=(px(4) if index == 0 else px(1), 0))
+
+    def _render_performance(self) -> None:
+        px = self.theme.px
+        colors = self.theme.colors
+
+        tools = tk.Frame(self.content, bg=colors.window)
+        tools.pack(fill="x", pady=(px(10), px(8)))
+        Button(tools, self.theme, "Refresh", lambda: self._show_section("performance"),
+               background=colors.window).pack(side="left")
+
+        data = performance.load()
+        transcription = data.get("transcription") or {}
+        cleanup = data.get("cleanup") or {}
+
+        if not transcription and not cleanup:
+            tk.Label(
+                self.content, text="Nothing measured yet. Dictate once and come back.",
+                font=self.theme.font, bg=colors.window, fg=colors.text_secondary, anchor="w",
+            ).pack(fill="x", pady=px(8))
+            return
+
+        if transcription:
+            audio = float(transcription.get("audio_seconds", 0.0))
+            processing = float(transcription.get("processing_seconds", 0.0))
+            rtf = float(transcription.get("realtime_factor", 0.0))
+            speed = f"{1 / rtf:.1f}x faster than real time" if rtf else "unknown speed"
+            lines = [
+                f"{audio:.1f} s of speech transcribed in {processing:.2f} s -- {speed}",
+                f"Real-time factor {rtf:.2f}. Lower is faster; this is the metric that "
+                f"describes the model rather than the speaker.",
+                f"{transcription.get('chars', 0)} characters "
+                f"({transcription.get('chars_per_second', 0)} per second, which mostly "
+                f"reflects how fast you were talking).",
+                f"{transcription.get('model')} @ {transcription.get('compute_type')} "
+                f"on {transcription.get('device')}, beam {transcription.get('beam_size')}"
+                f"  --  {transcription.get('ts', '')}",
+            ]
+            self._stat_card(self.content, "Last dictation", lines)
+
+            session = transcription.get("session") or {}
+            count = int(session.get("transcription_count", 0))
+            if count:
+                self._stat_card(self.content, "Since LocalSTT started", [
+                    f"{count} dictation(s), "
+                    f"{float(session.get('total_audio_duration', 0.0)):.1f} s of audio",
+                    f"Average {float(session.get('average_processing_time', 0.0)):.2f} s per "
+                    f"dictation, real-time factor "
+                    f"{float(session.get('realtime_factor', 0.0)):.2f}",
+                ])
+
+        if cleanup:
+            tokens = int(cleanup.get("tokens", 0))
+            generate = float(cleanup.get("generate_seconds", 0.0))
+            self._stat_card(self.content, "Last AI cleanup", [
+                f"{tokens} tokens in {generate:.2f} s -- "
+                f"{cleanup.get('tokens_per_second', 0)} tokens per second",
+                f"{cleanup.get('model')}, {cleanup.get('prompt_tokens', 0)} prompt tokens, "
+                f"{float(cleanup.get('total_seconds', 0.0)):.2f} s end to end"
+                f"  --  {cleanup.get('ts', '')}",
+                "Tokens per second is the right measure for the language model; the "
+                "recognition above is measured against the length of the audio instead.",
+            ])
+
+        tk.Frame(self.content, bg=colors.window, height=px(16)).pack(fill="x")
 
     # ------------------------------------------------------------------ self-test
 

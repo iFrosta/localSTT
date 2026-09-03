@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 import requests
 
+from . import performance
 from .config import AppConfig
 
 
@@ -103,6 +105,7 @@ def polish_text(text: str, config: AppConfig, logger: logging.Logger) -> str:
             "num_ctx": 4096,
         },
     }
+    started = time.perf_counter()
     try:
         response = requests.post(
             f"{config.ollama_base_url}/api/chat",
@@ -111,6 +114,8 @@ def polish_text(text: str, config: AppConfig, logger: logging.Logger) -> str:
         )
         response.raise_for_status()
         data = response.json()
+        if config.performance_tracking:
+            performance.record_cleanup(model, data, time.perf_counter() - started)
         cleaned = (data.get("message", {}) or {}).get("content", "").strip()
         return cleaned or text
     except Exception as exc:

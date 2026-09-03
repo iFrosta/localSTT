@@ -60,8 +60,10 @@ MODEL_DOWNLOAD_GB = {
     "tiny": 0.08,
 }
 
+# Fallback only: faster-whisper owns this mapping and moves models between repos
+# (large-v3-turbo lives under mobiuslabsgmbh, not Systran), so ask it when it is installed.
 HF_REPOS = {
-    "large-v3-turbo": "Systran/faster-whisper-large-v3-turbo",
+    "large-v3-turbo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
     "large-v3": "Systran/faster-whisper-large-v3",
     "large-v2": "Systran/faster-whisper-large-v2",
     "medium": "Systran/faster-whisper-medium",
@@ -214,13 +216,23 @@ def _hf_cache_root() -> Path:
     return Path.home() / ".cache" / "huggingface" / "hub"
 
 
+def _model_repo(model: str) -> str | None:
+    try:
+        from faster_whisper import utils
+
+        repo = getattr(utils, "_MODELS", {}).get(model)
+        if repo:
+            return str(repo)
+    except Exception:
+        pass
+    return HF_REPOS.get(model)
+
+
 def _model_is_cached(model: str) -> bool:
-    repo = HF_REPOS.get(model)
+    repo = _model_repo(model)
     if repo is None:
         return False
     folder = _hf_cache_root() / ("models--" + repo.replace("/", "--"))
-    if not folder.is_dir():
-        return False
     snapshots = folder / "snapshots"
     return snapshots.is_dir() and any(snapshots.iterdir())
 
@@ -482,6 +494,105 @@ def ollama_vram_gb(model: dict[str, Any]) -> float:
     return size_gb * 1.15 + 0.35
 
 
+# Registry tags with roughly the VRAM they occupy at their default quantisation. Used
+# only to suggest something to download when nothing installed fits.
+CLEANUP_PULL_CANDIDATES: list[tuple[str, float]] = [
+    ("qwen2.5:7b-instruct", 5.5),
+    ("qwen3.5:2b-q4_K_M", 2.4),
+    ("qwen2.5:3b-instruct", 2.4),
+    ("qwen3:1.7b", 1.8),
+    ("qwen2.5:1.5b-instruct", 1.5),
+    ("qwen3.5:0.8b", 1.4),
+    ("qwen2.5:0.5b-instruct", 0.8),
+]
+
+
+def is_cleanup_capable(model: dict[str, Any]) -> bool:
+    """An embedding model cannot rewrite text and a cloud model is not local.
+
+    ollama_cleanup has a stricter version of this, but it imports requests, and the
+    self-test has to run on a machine where nothing is installed yet.
+    """
+    name = str(model.get("name") or model.get("model") or "").lower()
+    if model.get("remote_host") or model.get("remote_model") or name.endswith(":cloud"):
+        return False
+    capabilities = set(model.get("capabilities") or [])
+    if capabilities and capabilities <= {"embedding"}:
+        return False
+    return "embed" not in name
+
+
+@dataclass
+class CleanupChoice:
+    """What this machine can actually run for cleanup dictation."""
+
+    reachable: bool
+    budget_gb: float
+    installed: list[tuple[str, float]] = field(default_factory=list)
+    best_installed: str | None = None
+    best_installed_gb: float = 0.0
+    pull: str | None = None
+    pull_gb: float = 0.0
+    note: str = ""
+
+
+def cleanup_budget_gb(config: AppConfig, gpu: dict[str, Any] | None) -> float:
+    """VRAM left for Ollama once Whisper is resident."""
+    if gpu is None:
+        return 0.0
+    whisper_gb = model_vram_gb(config.model, config.compute_type) or 0.0
+    return max(0.0, gpu["total_gb"] - whisper_gb - GPU_RESERVE_GB)
+
+
+def recommend_cleanup_model(config: AppConfig, gpu: dict[str, Any] | None = None) -> CleanupChoice:
+    """Prefer something already installed that fits; only suggest a download otherwise."""
+    if gpu is None:
+        gpu = _query_gpu()
+    budget = cleanup_budget_gb(config, gpu)
+
+    models = _ollama_models(config.ollama_base_url)
+    if models is None:
+        return CleanupChoice(
+            reachable=False, budget_gb=budget,
+            note=f"Ollama did not answer on {config.ollama_base_url}.",
+        )
+
+    installed = sorted(
+        (
+            (str(m.get("name", "")), ollama_vram_gb(m))
+            for m in models
+            if m.get("name") and is_cleanup_capable(m)
+        ),
+        key=lambda item: item[1],
+        reverse=True,
+    )
+    fitting = [item for item in installed if item[1] <= budget]
+
+    if fitting:
+        name, needed = fitting[0]
+        return CleanupChoice(
+            reachable=True, budget_gb=budget, installed=installed,
+            best_installed=name, best_installed_gb=needed,
+            note=f"{name} fits in the {_gb(budget)} left after Whisper.",
+        )
+
+    candidates = [c for c in CLEANUP_PULL_CANDIDATES if c[1] <= budget]
+    if candidates:
+        name, needed = candidates[0]
+        note = f"Nothing installed fits in {_gb(budget)}. {name} would."
+    else:
+        # Even the smallest spills; say so rather than pretending otherwise.
+        name, needed = CLEANUP_PULL_CANDIDATES[-1]
+        note = (
+            f"Only {_gb(budget)} is free after Whisper, so any cleanup model will spill "
+            f"onto the CPU. {name} is the least bad, or use a smaller Whisper model."
+        )
+    return CleanupChoice(
+        reachable=True, budget_gb=budget, installed=installed,
+        pull=name, pull_gb=needed, note=note,
+    )
+
+
 def check_ollama(config: AppConfig, gpu: dict[str, Any] | None) -> Check:
     title = "Ollama cleanup model"
     models = _ollama_models(config.ollama_base_url)
@@ -501,7 +612,7 @@ def check_ollama(config: AppConfig, gpu: dict[str, Any] | None) -> Check:
 
     by_name = {str(m.get("name", "")): m for m in models}
     fitting = sorted(
-        (m for m in models if ollama_vram_gb(m) <= budget),
+        (m for m in models if is_cleanup_capable(m) and ollama_vram_gb(m) <= budget),
         key=ollama_vram_gb,
         reverse=True,
     )
