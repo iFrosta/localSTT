@@ -77,6 +77,10 @@ class Card(tk.Frame):
         self._canvas.pack(fill="x", **kwargs)
         self._canvas.bind("<Configure>", self._resize)
 
+    def refresh(self) -> None:
+        """Re-measure after content was added once the card was already on screen."""
+        self._resize()
+
 
 class ToggleSwitch(tk.Canvas):
     """The Windows 11 pill switch.
@@ -377,17 +381,24 @@ class SettingRow(tk.Frame):
         super().__init__(parent, bg=background or colors.card)
         self.theme = theme
 
-        text = tk.Frame(self, bg=self["bg"])
-        text.pack(side="left", fill="x", expand=True)
+        self._text = tk.Frame(self, bg=self["bg"])
+        self._text.pack(side="left", fill="x", expand=True)
         tk.Label(
-            text, text=title, font=theme.font, bg=self["bg"], fg=colors.text, anchor="w",
+            self._text, text=title, font=theme.font, bg=self["bg"], fg=colors.text, anchor="w",
             justify="left",
         ).pack(anchor="w")
+        self._description = tk.Label(
+            self._text, text=description, font=theme.font_small, bg=self["bg"],
+            fg=colors.text_secondary, anchor="w", justify="left", wraplength=theme.px(420),
+        )
         if description:
-            tk.Label(
-                text, text=description, font=theme.font_small, bg=self["bg"],
-                fg=colors.text_secondary, anchor="w", justify="left", wraplength=theme.px(420),
-            ).pack(anchor="w", pady=(theme.px(2), 0))
+            self._description.pack(anchor="w", pady=(theme.px(2), 0))
 
         self.control_area = tk.Frame(self, bg=self["bg"])
         self.control_area.pack(side="right", padx=(theme.px(16), 0))
+
+    def set_description(self, text: str) -> None:
+        """Rows that wait on the network start with a placeholder and fill in later."""
+        self._description.configure(text=text)
+        if text and not self._description.winfo_ismapped():
+            self._description.pack(anchor="w", pady=(self.theme.px(2), 0))

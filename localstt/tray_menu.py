@@ -65,6 +65,8 @@ class Win11Menu:
         self.hover_index: int | None = None
         self.owner_index: int | None = None
         self._closed = False
+        self._timers: set[str] = set()
+        self._had_foreground = False
 
         root = master or (parent.window if parent else winui.UiThread.instance().root)
         self.window = tk.Toplevel(root)
@@ -260,14 +262,29 @@ class Win11Menu:
         if action is not None:
             action()
 
+    def _later(self, delay: int, callback) -> None:
+        """after() whose timer is cancelled when the window goes away.
+
+        A timer left armed fires into a destroyed widget, and Tcl reports that as a
+        background error rather than swallowing it. Each timer drops itself from the
+        set as it runs, so a repeating one does not accumulate ids.
+        """
+        if self._closed:
+            return
+        holder: dict[str, str] = {}
+
+        def run() -> None:
+            self._timers.discard(holder.get("id", ""))
+            callback()
+
+        holder["id"] = self.window.after(delay, run)
+        self._timers.add(holder["id"])
+
     def _on_focus_out(self, event) -> None:
         # A submenu opening can carry focus with it, which Tk reports as the parent
         # losing focus. Only focus leaving the whole tree should dismiss the menu, and
         # that is only knowable once Tk has settled.
-        try:
-            self.window.after(50, self._dismiss_unless_focused)
-        except tk.TclError:
-            pass
+        self._later(50, self._dismiss_unless_focused)
 
     def _dismiss_unless_focused(self) -> None:
         root = self._root()
@@ -279,24 +296,53 @@ class Win11Menu:
             focused = None
         if focused is not None and root._holds(focused.winfo_toplevel()):
             return
+        # Tk can report no focus at all during the parent -> submenu handoff, so the
+        # window manager gets the deciding vote before the menu is torn down.
+        active = get_foreground_window()
+        if active is not None and root._holds_hwnd(active):
+            return
         root.close()
 
-    def _watch_foreground(self) -> None:
-        """Tk's focus events do not fire reliably for a borderless popup, so ask Windows.
+    def _pointer_outside(self) -> bool:
+        x, y = winui.cursor_position()
+        node = self
+        while node is not None:
+            try:
+                left, top = node.window.winfo_rootx(), node.window.winfo_rooty()
+                if (left <= x < left + node.window.winfo_width()
+                        and top <= y < top + node.window.winfo_height()):
+                    return False
+            except tk.TclError:
+                pass
+            node = node.child
+        return True
 
-        This is what dismisses the menu on a click into another application, the way
-        every other context menu on the desktop behaves.
+    def _watch_dismiss(self) -> None:
+        """What closes the menu when the user goes elsewhere.
+
+        Tk's focus events do not fire reliably for a borderless popup, and the popup
+        does not always win the foreground, so neither can be the only signal. A click
+        outside the menu needs no focus at all to observe; the foreground check catches
+        the rest (Alt+Tab, another window raising itself), but only once the menu has
+        actually held the foreground -- Windows hands it over asynchronously, and
+        without that gate a slow handoff would close the menu as it opened.
         """
         if self._closed:
             return
-        active = get_foreground_window()
-        if active is not None and not self._holds_hwnd(active):
+
+        if winui.mouse_click_since_last_call() and self._pointer_outside():
             self.close()
             return
-        try:
-            self.window.after(150, self._watch_foreground)
-        except tk.TclError:
-            pass
+
+        active = get_foreground_window()
+        if active is not None:
+            if self._holds_hwnd(active):
+                self._had_foreground = True
+            elif self._had_foreground:
+                self.close()
+                return
+
+        self._later(80, self._watch_dismiss)
 
     def _root(self) -> "Win11Menu":
         node = self
@@ -356,8 +402,10 @@ class Win11Menu:
             # tells it the user clicked elsewhere, and it stays on screen for good.
             set_foreground_window(handle)
             self.window.focus_force()
-            if get_foreground_window() == handle:
-                self._watch_foreground()
+            # Clears the "pressed since last call" bit left by the click that opened
+            # the menu, so the watchdog only ever sees the next one.
+            winui.mouse_click_since_last_call()
+            self._later(80, self._watch_dismiss)
 
     def close(self) -> None:
         global _visible
@@ -367,6 +415,12 @@ class Win11Menu:
         self._closed = True
         if _visible is self:
             _visible = None
+        for timer in list(self._timers):
+            try:
+                self.window.after_cancel(timer)
+            except tk.TclError:
+                pass
+        self._timers.clear()
         if self.child is not None:
             self.child.close()
             self.child = None

@@ -21,6 +21,14 @@ from .widgets import Button, Card, Dropdown, SettingRow, TextField, Theme, Toggl
 
 RESTART_NOTE = "Applied when LocalSTT restarts."
 
+# Segoe Fluent Icons: CheckMark, Warning, ErrorCircle, Health, Info.
+GLYPH_OK = "\ue73e"
+GLYPH_WARN = "\ue7ba"
+GLYPH_FAIL = "\ue783"
+GLYPH_HEALTH = "\ue95e"
+GLYPH_INFO = "\ue946"
+WARN_COLOR = "#f0a30a"
+
 
 @dataclass
 class Field:
@@ -62,7 +70,7 @@ def _microphone_options() -> tuple[list[str], dict[str, str]]:
 
 
 def _ollama_options(config: AppConfig, gpu_total_gb: float | None) -> tuple[list[str], dict[str, str]]:
-    models = preflight.ollama_models(config.ollama_base_url) or []
+    models = preflight.ollama_models(config.ollama_base_url, max_age=10.0) or []
     whisper_gb = preflight.model_vram_gb(config.model, config.compute_type) or 0.0
     budget = (gpu_total_gb - whisper_gb - preflight.GPU_RESERVE_GB) if gpu_total_gb else None
 
@@ -87,7 +95,11 @@ def _ollama_options(config: AppConfig, gpu_total_gb: float | None) -> tuple[list
 
 def build_sections(config: AppConfig, gpu_total_gb: float | None, logger) -> list[Section]:
     mic_options, mic_labels = _microphone_options()
-    ollama_options, ollama_labels = _ollama_options(config, gpu_total_gb)
+    # Only what config already knows: asking Ollama here made opening the settings
+    # window wait on the network (~2 s when nothing answers). The AI cleanup section
+    # fills the real list in once it has one.
+    ollama_options = [config.ollama_model] if config.ollama_model else []
+    ollama_labels: dict[str, str] = {}
 
     compute_labels = {}
     for compute in ("float16", "int8_float16", "int8"):
@@ -173,7 +185,7 @@ def build_sections(config: AppConfig, gpu_total_gb: float | None, logger) -> lis
             Field("api_port", "Port", "OpenAI-compatible endpoint for other tools.",
                   kind="number", restart=True),
         ]),
-        Section("selftest", "Self-test", "", custom="selftest"),
+        Section("health", "Health", GLYPH_HEALTH, custom="health"),
     ]
 
 
@@ -184,6 +196,7 @@ class SettingsWindow:
         self.on_saved = on_saved
         self.pending: dict[str, Any] = {}
         self.restart_keys: set[str] = set()
+        self.controls: dict[str, Any] = {}
 
         gpu = preflight._query_gpu()
         self.gpu_total_gb = gpu["total_gb"] if gpu else None
@@ -338,6 +351,15 @@ class SettingsWindow:
         link.pack(side="left", padx=px(24))
         link.bind("<Button-1>", lambda e: _open_path(CONFIG_PATH))
 
+        # Whether this machine is healthy is worth seeing without opening the section.
+        self.health_badge = tk.Label(
+            footer, text="", font=self.theme.font, bg=colors.surface,
+            fg=colors.text_secondary, cursor="hand2",
+        )
+        self.health_badge.pack(side="left")
+        self.health_badge.bind("<Button-1>", lambda e: self._show_section("health"))
+        self._update_health_badge(preflight.load())
+
         self.status = tk.Label(
             footer, text="", font=self.theme.font_small,
             bg=colors.surface, fg=colors.text_secondary,
@@ -350,6 +372,27 @@ class SettingsWindow:
         Button(footer, self.theme, "Discard", self._discard,
                background=colors.surface).pack(side="right", pady=px(12))
 
+    def _update_health_badge(self, report: preflight.Report | None) -> None:
+        """The footer says how this machine is doing without opening the section."""
+        colors = self.theme.colors
+        if report is None:
+            self.health_badge.configure(
+                text=f"{GLYPH_HEALTH}  Health: not checked yet", fg=colors.text_secondary
+            )
+            return
+
+        problems = [c for c in report.core if c.status != preflight.OK]
+        status = report.core_status
+        if status == preflight.OK:
+            glyph, color, text = GLYPH_OK, colors.accent, "Healthy"
+        elif status == preflight.WARN:
+            glyph, color = GLYPH_WARN, WARN_COLOR
+            text = f"{len(problems)} warning(s)"
+        else:
+            glyph, color = GLYPH_FAIL, colors.danger
+            text = f"{len(problems)} problem(s)"
+        self.health_badge.configure(text=f"{glyph}  {text}", fg=color)
+
     # ------------------------------------------------------------------ sections
 
     def _show_section(self, key: str) -> None:
@@ -361,15 +404,22 @@ class SettingsWindow:
         self.header.configure(text=section.title)
         for child in self.content.winfo_children():
             child.destroy()
+        self.controls.clear()
 
-        if section.custom == "selftest":
-            self._render_selftest()
+        if section.custom == "health":
+            self._render_health()
+            return
+
+        if section.custom == "commands":
+            # One availability pass feeds both the summary and the list below it.
+            rows = command_statuses(self.logger)
+            self._render_commands_health(rows)
+            self._render_fields(section)
+            self._render_commands(rows)
             return
 
         self._render_fields(section)
-        if section.custom == "commands":
-            self._render_commands()
-        elif section.custom == "cleanup":
+        if section.custom == "cleanup":
             self._render_cleanup()
         elif section.custom == "performance":
             self._render_performance()
@@ -421,6 +471,7 @@ class SettingsWindow:
                 else (lambda v, f=field: self._stage(f, v))
             )
             toggle.pack()
+            self.controls[field.key] = toggle
             return
 
         if field.kind == "choice":
@@ -428,22 +479,59 @@ class SettingsWindow:
             options = list(field.options)
             if shown not in options:
                 options.insert(0, shown)
-            Dropdown(
+            dropdown = Dropdown(
                 parent, self.theme, shown, options,
                 lambda v, f=field: self._stage(f, f.parse(v) if f.parse else v),
                 labels=field.labels, width=240,
-            ).pack()
+            )
+            dropdown.pack()
+            self.controls[field.key] = dropdown
             return
 
-        TextField(
+        text_field = TextField(
             parent, self.theme, str(value),
             lambda v, f=field: self._stage(f, v),
             width=240 if field.kind == "text" else 120,
-        ).pack()
+        )
+        text_field.pack()
+        self.controls[field.key] = text_field
 
     # ------------------------------------------------------------------ commands
 
-    def _render_commands(self) -> None:
+    def _render_commands_health(self, rows: list) -> None:
+        """How the commands fare on this machine, at the top of their own section.
+
+        This used to be a line in the health report, where a missing text editor read
+        as a problem with LocalSTT. It belongs next to the commands it describes.
+        """
+        px = self.theme.px
+        unavailable = [(c, s) for c, s in rows if not s.available]
+
+        if not rows:
+            check = preflight.Check(
+                "commands", "Voice commands", preflight.WARN,
+                "commands.json holds no commands",
+                "Add commands to commands.json, or use the button below to open it.",
+            )
+        elif unavailable:
+            listed = ", ".join(str(c.get("name", "unnamed")) for c, _ in unavailable[:6])
+            check = preflight.Check(
+                "commands", "Voice commands", preflight.WARN,
+                f"{len(rows) - len(unavailable)} of {len(rows)} work on this machine; "
+                f"unavailable: {listed}",
+                "These point at software this machine does not have. They are skipped, "
+                "not broken, and the rest still work.",
+            )
+        else:
+            check = preflight.Check(
+                "commands", "Voice commands", preflight.OK,
+                f"all {len(rows)} commands work on this machine",
+            )
+
+        self._check_card(self.content, check)
+        tk.Frame(self.content, bg=self.theme.colors.window, height=px(10)).pack(fill="x")
+
+    def _render_commands(self, rows: list) -> None:
         px = self.theme.px
         colors = self.theme.colors
 
@@ -461,16 +549,27 @@ class SettingsWindow:
                background=colors.window).pack(side="left", padx=px(8))
         Button(tools, self.theme, "Rebuild app index",
                self._rebuild_index, background=colors.window).pack(side="left")
+        Button(tools, self.theme, "Re-check", self._recheck_commands,
+               background=colors.window).pack(side="left", padx=px(8))
 
-        for command, status in command_statuses(self.logger):
+        for command, status in rows:
             name = str(command.get("name", "unnamed"))
             patterns = ", ".join(str(p) for p in command.get("patterns", [])[:3])
             description = patterns if status.available else f"{patterns}\nUnavailable: {status.reason}"
 
             card = Card(self.content, self.theme, padding=12)
             card.pack_card(pady=(0, px(4)))
-            row = SettingRow(card, self.theme, name, description)
-            row.pack(fill="x")
+            line = tk.Frame(card, bg=colors.card)
+            line.pack(fill="x")
+            # The mark is what makes a command that cannot run visible at a glance.
+            glyph, color = (
+                (GLYPH_OK, colors.accent) if status.available else (GLYPH_WARN, WARN_COLOR)
+            )
+            tk.Label(
+                line, text=glyph, font=self.theme.font_icon, bg=colors.card, fg=color,
+            ).pack(side="left", padx=(0, px(12)))
+            row = SettingRow(line, self.theme, name, description)
+            row.pack(side="left", fill="x", expand=True)
             ToggleSwitch(
                 row.control_area, self.theme,
                 command.get("enabled", True) is not False,
@@ -478,6 +577,11 @@ class SettingsWindow:
             ).pack()
 
         tk.Frame(self.content, bg=colors.window, height=px(16)).pack(fill="x")
+
+    def _recheck_commands(self) -> None:
+        clear_availability_cache()
+        self.status.configure(text="re-checked voice commands")
+        self._show_section("commands")
 
     def _set_command_enabled(self, name: str, enabled: bool) -> None:
         try:
@@ -511,31 +615,59 @@ class SettingsWindow:
     # ------------------------------------------------------------------ cleanup model
 
     def _render_cleanup(self) -> None:
-        """What this GPU can actually run, and a way to get it if nothing here fits."""
-        px = self.theme.px
-        colors = self.theme.colors
-        gpu = {"total_gb": self.gpu_total_gb} if self.gpu_total_gb else None
-        choice = preflight.recommend_cleanup_model(self.config, gpu)
+        """What this GPU can actually run, and a way to get it if nothing here fits.
 
+        Ollama is asked off the UI thread: the answer used to be awaited inline, which
+        froze the section while it was being drawn and left the card blank until the
+        user navigated away and back.
+        """
+        px = self.theme.px
         card = Card(self.content, self.theme)
         card.pack_card(pady=(px(8), px(6)))
-        row = SettingRow(card, self.theme, "What fits on this GPU", choice.note)
+        row = SettingRow(card, self.theme, "What fits on this GPU", "Asking Ollama...")
         row.pack(fill="x")
 
-        if not choice.reachable:
+        def work() -> None:
+            gpu = {"total_gb": self.gpu_total_gb} if self.gpu_total_gb else None
+            choice = preflight.recommend_cleanup_model(self.config, gpu, max_age=10.0)
+            # Answered from the same reply the recommendation just used.
+            options, labels = _ollama_options(self.config, self.gpu_total_gb)
+            winui.UiThread.instance().submit(
+                lambda: self._show_cleanup_choice(card, row, choice, options, labels)
+            )
+
+        _run_off_ui(work)
+
+    def _show_cleanup_choice(
+        self, card: Card, row: SettingRow, choice, options: list[str], labels: dict[str, str]
+    ) -> None:
+        colors = self.theme.colors
+        try:
+            if not row.winfo_exists():  # the section was left before Ollama answered
+                return
+        except tk.TclError:
             return
-        if choice.pull:
-            Button(
-                row.control_area, self.theme, f"Download {choice.pull}",
-                lambda name=choice.pull: self._pull_cleanup_model(name),
-                primary=True, background=colors.card,
-            ).pack()
-        elif choice.best_installed and choice.best_installed != self.config.ollama_model:
-            Button(
-                row.control_area, self.theme, f"Use {choice.best_installed}",
-                lambda name=choice.best_installed: self._use_cleanup_model(name),
-                primary=True, background=colors.card,
-            ).pack()
+
+        dropdown = self.controls.get("ollama_model")
+        if dropdown is not None and dropdown.winfo_exists() and options:
+            dropdown.labels = labels
+            dropdown.set_options(options, self.pending.get("ollama_model", self.config.ollama_model))
+
+        row.set_description(choice.note)
+        if choice.reachable:
+            if choice.pull:
+                Button(
+                    row.control_area, self.theme, f"Download {choice.pull}",
+                    lambda name=choice.pull: self._pull_cleanup_model(name),
+                    primary=True, background=colors.card,
+                ).pack()
+            elif choice.best_installed and choice.best_installed != self.config.ollama_model:
+                Button(
+                    row.control_area, self.theme, f"Use {choice.best_installed}",
+                    lambda name=choice.best_installed: self._use_cleanup_model(name),
+                    primary=True, background=colors.card,
+                ).pack()
+        card.refresh()
 
     def _use_cleanup_model(self, name: str) -> None:
         self.config.ollama_model = name
@@ -746,84 +878,112 @@ class SettingsWindow:
 
     # ------------------------------------------------------------------ self-test
 
-    def _render_selftest(self) -> None:
+    def _render_health(self) -> None:
         px = self.theme.px
         colors = self.theme.colors
 
         tools = tk.Frame(self.content, bg=colors.window)
         tools.pack(fill="x", pady=(0, px(10)))
-        Button(tools, self.theme, "Run self-test", self._run_selftest,
+        Button(tools, self.theme, "Run health check", self._run_health_check,
                primary=True, background=colors.window).pack(side="left")
 
-        self.selftest_host = tk.Frame(self.content, bg=colors.window)
-        self.selftest_host.pack(fill="both", expand=True)
+        self.health_host = tk.Frame(self.content, bg=colors.window)
+        self.health_host.pack(fill="both", expand=True)
 
         report = preflight.load()
         if report is None:
             tk.Label(
-                self.selftest_host,
-                text="This device has not been tested yet.",
+                self.health_host,
+                text="This device has not been checked yet.",
                 font=self.theme.font, bg=colors.window, fg=colors.text_secondary, anchor="w",
             ).pack(fill="x", pady=px(8))
         else:
             self._render_report(report)
 
-    def _run_selftest(self) -> None:
-        self.status.configure(text="running self-test...")
+    def _run_health_check(self) -> None:
+        self.status.configure(text="running health check...")
 
         def work() -> None:
             report = preflight.run(self.config, self.logger)
             preflight.save(report)
 
             def show() -> None:
-                for child in self.selftest_host.winfo_children():
+                self._update_health_badge(report)
+                if not self.health_host.winfo_exists():
+                    return
+                for child in self.health_host.winfo_children():
                     child.destroy()
                 self._render_report(report)
-                self.status.configure(text=f"self-test: {report.status}")
+                self.status.configure(text=f"health: {report.core_status}")
 
             winui.UiThread.instance().submit(show)
 
         _run_off_ui(work)
 
-    def _render_report(self, report: preflight.Report) -> None:
+    def _check_card(self, parent: tk.Misc, check: preflight.Check) -> None:
+        """One check, drawn the same way wherever it is shown."""
         px = self.theme.px
         colors = self.theme.colors
         marks = {
-            preflight.OK: ("", colors.accent),
-            preflight.WARN: ("", "#f0a30a"),
-            preflight.FAIL: ("", colors.danger),
+            preflight.OK: (GLYPH_OK, colors.accent),
+            preflight.WARN: (GLYPH_WARN, WARN_COLOR),
+            preflight.FAIL: (GLYPH_FAIL, colors.danger),
         }
+        glyph, color = marks.get(check.status, ("", colors.text))
+
+        card = Card(parent, self.theme, padding=12)
+        card.pack_card(pady=(0, px(4)))
+
+        line = tk.Frame(card, bg=colors.card)
+        line.pack(fill="x")
+        tk.Label(
+            line, text=glyph, font=self.theme.font_icon, bg=colors.card, fg=color,
+        ).pack(side="left", padx=(0, px(12)))
+
+        text = tk.Frame(line, bg=colors.card)
+        text.pack(side="left", fill="x", expand=True)
+        tk.Label(
+            text, text=check.title, font=self.theme.font,
+            bg=colors.card, fg=colors.text, anchor="w",
+        ).pack(anchor="w")
+        body = check.detail if check.status == preflight.OK else f"{check.detail}\n{check.hint}".strip()
+        tk.Label(
+            text, text=body, font=self.theme.font_small, bg=colors.card,
+            fg=colors.text_secondary, anchor="w", justify="left", wraplength=px(560),
+        ).pack(anchor="w")
+
+    def _render_report(self, report: preflight.Report) -> None:
+        px = self.theme.px
+        colors = self.theme.colors
 
         tk.Label(
-            self.selftest_host,
-            text=f"{report.machine} - {report.ran_at} - {report.status.upper()}",
+            self.health_host,
+            text=f"{report.machine} - {report.ran_at} - {report.core_status.upper()}",
             font=self.theme.font_small, bg=colors.window, fg=colors.text_secondary, anchor="w",
         ).pack(fill="x", pady=(0, px(8)))
 
-        for check in report.checks:
-            glyph, color = marks.get(check.status, ("", colors.text))
-            card = Card(self.selftest_host, self.theme, padding=12)
-            card.pack_card(pady=(0, px(4)))
+        for check in report.core:
+            self._check_card(self.health_host, check)
 
-            line = tk.Frame(card, bg=colors.card)
-            line.pack(fill="x")
+        # Cleanup dictation is an extra: when Ollama is missing or its model does not
+        # fit, recording and typing still work, so it is reported on its own terms and
+        # never colours the status above. Voice commands answer for themselves, in
+        # their own section.
+        extras = [c for c in report.advisory if c.name != "commands"]
+        if extras:
             tk.Label(
-                line, text=glyph, font=self.theme.font_icon, bg=colors.card, fg=color,
-            ).pack(side="left", padx=(0, px(12)))
+                self.health_host, text="Extras", font=self.theme.font_bold,
+                bg=colors.window, fg=colors.text, anchor="w",
+            ).pack(fill="x", pady=(px(14), px(2)))
+            tk.Label(
+                self.health_host,
+                text="Dictation records, transcribes and types without these.",
+                font=self.theme.font_small, bg=colors.window, fg=colors.text_secondary, anchor="w",
+            ).pack(fill="x", pady=(0, px(6)))
+            for check in extras:
+                self._check_card(self.health_host, check)
 
-            text = tk.Frame(line, bg=colors.card)
-            text.pack(side="left", fill="x", expand=True)
-            tk.Label(
-                text, text=check.title, font=self.theme.font,
-                bg=colors.card, fg=colors.text, anchor="w",
-            ).pack(anchor="w")
-            body = check.detail if check.status == preflight.OK else f"{check.detail}\n{check.hint}".strip()
-            tk.Label(
-                text, text=body, font=self.theme.font_small, bg=colors.card,
-                fg=colors.text_secondary, anchor="w", justify="left", wraplength=px(560),
-            ).pack(anchor="w")
-
-        tk.Frame(self.selftest_host, bg=colors.window, height=px(16)).pack(fill="x")
+        tk.Frame(self.health_host, bg=colors.window, height=px(16)).pack(fill="x")
 
     # ------------------------------------------------------------------ save
 
@@ -850,20 +1010,23 @@ class SettingsWindow:
         self.restart_keys.clear()
         self.logger.info("settings saved: %s", ", ".join(applied) or "no changes")
 
-        if needs_restart:
-            self.status.configure(text=f"saved - restart to apply {', '.join(needs_restart)}")
-        else:
-            self.status.configure(text="saved")
-
         if self.on_saved is not None:
             self.on_saved(applied)
+
+        # Both buttons dismiss the window; the tray shows the confirmation. A restart
+        # note is the one thing the user still has to read, so it stays up briefly.
+        if needs_restart:
+            self.status.configure(text=f"saved - restart to apply {', '.join(needs_restart)}")
+            self.window.after(1800, self.close)
+        else:
+            self.status.configure(text="saved")
+            self.close()
 
     def _discard(self) -> None:
         self.pending.clear()
         self.restart_keys.clear()
-        self.status.configure(text="changes discarded")
-        current = next((k for k, c in self.nav_buttons.items() if c.selected), self.sections[0].key)
-        self._show_section(current)
+        self.logger.info("settings discarded")
+        self.close()
 
     def close(self) -> None:
         try:
@@ -913,7 +1076,7 @@ def open_settings(
     on_saved: Callable[[list[str]], None] | None = None,
     *,
     section: str | None = None,
-    run_selftest: bool = False,
+    run_health_check: bool = False,
 ) -> None:
     """Show the settings window, reusing the open one. Safe to call from any thread."""
 
@@ -926,16 +1089,16 @@ def open_settings(
                 _WINDOW.window.focus_force()
                 if section:
                     _WINDOW._show_section(section)
-                if run_selftest:
-                    _WINDOW._run_selftest()
+                if run_health_check:
+                    _WINDOW._run_health_check()
                 return
             except tk.TclError:
                 _WINDOW = None
         window = SettingsWindow(config, logger, on_saved)
         if section:
             window._show_section(section)
-        if run_selftest:
-            window._run_selftest()
+        if run_health_check:
+            window._run_health_check()
         original_close = window.close
 
         def close() -> None:
@@ -958,7 +1121,7 @@ def show_report_blocking(config: AppConfig, logger) -> None:
 
     def build() -> None:
         window = SettingsWindow(config, logger)
-        window._show_section("selftest")
+        window._show_section("health")
         original_close = window.close
 
         def close() -> None:

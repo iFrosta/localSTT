@@ -24,7 +24,15 @@ from .command_runner import (
     match_voice_command,
     run_matched_command,
 )
-from .config import APPDATA_DIR, COMMANDS_PATH, CONFIG_PATH, LAST_TRANSCRIPT_PATH, LOG_PATH, AppConfig, save_config
+from .config import (
+    COMMANDS_PATH,
+    CONFIG_PATH,
+    HISTORY_PATH,
+    LAST_TRANSCRIPT_PATH,
+    LOG_PATH,
+    AppConfig,
+    save_config,
+)
 from .ollama_cleanup import polish_text
 from .service import STTService
 from . import branding, settings_window, text_input, tray_menu
@@ -56,9 +64,10 @@ COLORS = {
 MODE_PENDING = "pending"
 
 
-def _one_line(text: str) -> str:
-    """Windows device names carry newlines (Bluetooth headsets especially)."""
-    return " ".join(str(text).split())
+def _short(text: str, limit: int) -> str:
+    """The menu clamps its own width, so a long label would be cut mid-word instead."""
+    text = str(text)
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "\u2026"
 
 
 
@@ -595,6 +604,7 @@ class LocalSTTTrayApp:
             ),
             separator(),
             MenuItem("Last transcript", lambda: self._open_path(LAST_TRANSCRIPT_PATH), icon="\ue8a5"),
+            MenuItem("Dictation history", self._open_history, icon="\ue8bc"),
             MenuItem("Command history", lambda: self._open_path(COMMAND_HISTORY_PATH), icon="\ue81c"),
             MenuItem("Open logs", lambda: self._open_path(LOG_PATH), icon="\ue9d5"),
             separator(),
@@ -613,12 +623,19 @@ class LocalSTTTrayApp:
         default_name = next((m["name"] for m in mics if m["index"] == default_index), None)
         label = "Windows default"
         if default_name:
-            label += f": {_one_line(default_name)}"
+            label += f": {_short(default_name, 44)}"
+
+        # Windows lists the same hardware once per host API, so the tail is cut -- but
+        # never the device in use, or the submenu would again show nothing selected.
+        shown = mics[:20]
+        chosen = next((m for m in mics if m["index"] == self.config.microphone), None)
+        if chosen is not None and chosen not in shown:
+            shown.append(chosen)
 
         items = [
             MenuItem(
                 label,
-                (lambda: self._set_microphone(None)),
+                (lambda: self._set_microphone(None, "Windows default")),
                 checked=self.config.microphone is None,
                 radio=True,
             ),
@@ -626,12 +643,12 @@ class LocalSTTTrayApp:
         ]
         items.extend(
             MenuItem(
-                f"{mic['index']}: {_one_line(mic['name'])}",
-                (lambda index=mic["index"]: self._set_microphone(index)),
+                f"{mic['index']}: {_short(mic['name'], 44)}",
+                (lambda index=mic["index"], name=mic["name"]: self._set_microphone(index, name)),
                 checked=self.config.microphone == mic["index"],
                 radio=True,
             )
-            for mic in mics[:20]
+            for mic in shown
         )
         return items
 
@@ -694,11 +711,11 @@ class LocalSTTTrayApp:
         self.service.logger.info("command auto-stop set to %s", state)
         self._notify("LocalSTT commands", f"Auto-stop: {state}")
 
-    def _set_microphone(self, index: int | None) -> None:
+    def _set_microphone(self, index: int | None, name: str) -> None:
+        # The name comes from the list the menu was built from: re-querying PortAudio
+        # here would enumerate every host API again on the UI thread.
         self.config.microphone = index
         save_config(self.config)
-        chosen = next((m for m in list_microphones() if m["index"] == index), None)
-        name = _one_line(chosen["name"]) if chosen else "Windows default"
         self.service.logger.info("microphone set to %s", name)
         self._notify("LocalSTT microphone", name)
 
@@ -715,7 +732,7 @@ class LocalSTTTrayApp:
         self._restart()
 
     def _open_history(self, *args) -> None:
-        self._open_path(APPDATA_DIR / "history.jsonl")
+        self._open_path(HISTORY_PATH)
 
     def _open_path(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)

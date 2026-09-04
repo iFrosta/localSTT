@@ -13,10 +13,14 @@ def list_microphones() -> list[dict]:
     result = []
     for index, device in enumerate(devices):
         if int(device.get("max_input_channels", 0)) > 0:
+            # Windows device names carry newlines (Bluetooth headsets especially), and
+            # every consumer -- tray menu, settings dropdown, self-test -- shows them
+            # on a single line.
+            name = " ".join(str(device.get("name", f"Input {index}")).split())
             result.append(
                 {
                     "index": index,
-                    "name": device.get("name", f"Input {index}"),
+                    "name": name,
                     "default_samplerate": device.get("default_samplerate"),
                 }
             )

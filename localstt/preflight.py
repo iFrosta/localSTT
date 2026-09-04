@@ -17,6 +17,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass, field
@@ -104,6 +105,12 @@ BLOCKING_CHECKS = {
     "platform", "python", "packages", "driver", "gpu", "cuda_runtime", "ctranslate2", "compute_fit",
 }
 
+# Checks that describe an extra rather than LocalSTT itself. Cleanup dictation needs
+# Ollama and voice commands need other software installed; when either is missing the
+# app still records, transcribes and types. They are reported on their own terms and
+# never darken the overall status.
+ADVISORY_CHECKS = {"commands", "ollama"}
+
 
 @dataclass
 class Check:
@@ -133,6 +140,24 @@ class Report:
     @property
     def blocking_failures(self) -> list[Check]:
         return [c for c in self.failures if c.name in BLOCKING_CHECKS]
+
+    @property
+    def core(self) -> list[Check]:
+        """The checks the overall status is made of."""
+        return [c for c in self.checks if c.name not in ADVISORY_CHECKS]
+
+    @property
+    def core_status(self) -> str:
+        """Recomputed rather than read from `status`, which a report written by an
+        older version may have taken from the advisory checks too."""
+        return _worst([c.status for c in self.core])
+
+    @property
+    def advisory(self) -> list[Check]:
+        return [c for c in self.checks if c.name in ADVISORY_CHECKS]
+
+    def find(self, name: str) -> Check | None:
+        return next((c for c in self.checks if c.name == name), None)
 
 
 def _worst(statuses: list[str]) -> str:
@@ -253,7 +278,22 @@ def _listening_connections(proc) -> list:
     return query(kind="inet")
 
 
-def _port_holder(port: int):
+def _is_listening(conn, host: str, port: int) -> bool:
+    """A listening socket on this address, not an accepted or outbound one.
+
+    Without the status test any ephemeral socket that happens to use the same local
+    port would answer for the listener and name the wrong process.
+    """
+    import psutil
+
+    if conn.status != psutil.CONN_LISTEN or not conn.laddr:
+        return False
+    if conn.laddr.port != port:
+        return False
+    return conn.laddr.ip in (host, "0.0.0.0", "::", "")
+
+
+def _port_holder(host: str, port: int):
     """The process listening on the port, or None when Windows will not say."""
     try:
         import psutil
@@ -263,7 +303,7 @@ def _port_holder(port: int):
     try:
         own = psutil.Process()
         for conn in _listening_connections(own):
-            if conn.laddr and conn.laddr.port == port:
+            if _is_listening(conn, host, port):
                 return own
     except Exception:
         pass
@@ -272,7 +312,7 @@ def _port_holder(port: int):
     # process never does, so it is the fallback rather than the first question.
     try:
         for conn in psutil.net_connections(kind="inet"):
-            if conn.laddr and conn.laddr.port == port and conn.pid:
+            if conn.pid and _is_listening(conn, host, port):
                 return psutil.Process(conn.pid)
     except Exception:
         return None
@@ -491,11 +531,18 @@ def check_api_port(config: AppConfig) -> Check:
         return Check("api_port", title, OK, f"{address} is free")
 
     # The self-test also runs from the settings window of a LocalSTT that is already
-    # serving on this port, and a warning about ourselves is noise, not a finding.
-    holder = _port_holder(config.api_port)
+    # serving on this port, and a warning about ourselves is noise, not a finding. A
+    # *second* LocalSTT is a different matter: its API would silently fail to bind.
+    holder = _port_holder(config.api_host, config.api_port)
+    if holder is not None and holder.pid == os.getpid():
+        return Check("api_port", title, OK, f"{address} is served by this LocalSTT")
+
     if holder is not None and _is_localstt(holder):
-        who = "this LocalSTT" if holder.pid == os.getpid() else f"a running LocalSTT (PID {holder.pid})"
-        return Check("api_port", title, OK, f"{address} is served by {who}")
+        return Check(
+            "api_port", title, WARN,
+            f"{address} is already served by another LocalSTT (PID {holder.pid})",
+            "Only one instance can own the port; the second one starts without its API.",
+        )
 
     if holder is not None:
         try:
@@ -546,8 +593,22 @@ def _ollama_models(base_url: str) -> list[dict[str, Any]] | None:
     return list(payload.get("models", []))
 
 
-def ollama_models(base_url: str) -> list[dict[str, Any]] | None:
-    return _ollama_models(base_url)
+_MODELS_CACHE: dict[str, tuple[float, list[dict[str, Any]] | None]] = {}
+
+
+def ollama_models(base_url: str, max_age: float = 0.0) -> list[dict[str, Any]] | None:
+    """Installed models, optionally answered from a recent reply.
+
+    Opening the settings window asks for this list several times over; a health run
+    passes max_age=0 and always goes to the network.
+    """
+    if max_age > 0:
+        cached = _MODELS_CACHE.get(base_url)
+        if cached is not None and (time.monotonic() - cached[0]) <= max_age:
+            return cached[1]
+    models = _ollama_models(base_url)
+    _MODELS_CACHE[base_url] = (time.monotonic(), models)
+    return models
 
 
 def ollama_vram_gb(model: dict[str, Any]) -> float:
@@ -606,13 +667,15 @@ def cleanup_budget_gb(config: AppConfig, gpu: dict[str, Any] | None) -> float:
     return max(0.0, gpu["total_gb"] - whisper_gb - GPU_RESERVE_GB)
 
 
-def recommend_cleanup_model(config: AppConfig, gpu: dict[str, Any] | None = None) -> CleanupChoice:
+def recommend_cleanup_model(
+    config: AppConfig, gpu: dict[str, Any] | None = None, *, max_age: float = 0.0
+) -> CleanupChoice:
     """Prefer something already installed that fits; only suggest a download otherwise."""
     if gpu is None:
         gpu = _query_gpu()
     budget = cleanup_budget_gb(config, gpu)
 
-    models = _ollama_models(config.ollama_base_url)
+    models = ollama_models(config.ollama_base_url, max_age=max_age)
     if models is None:
         return CleanupChoice(
             reachable=False, budget_gb=budget,
@@ -629,6 +692,17 @@ def recommend_cleanup_model(config: AppConfig, gpu: dict[str, Any] | None = None
         reverse=True,
     )
     fitting = [item for item in installed if item[1] <= budget]
+
+    # A configured model that fits is the answer. Ranking by size alone would keep
+    # proposing the largest installed model over a working choice, and for cleanup a
+    # bigger model is not automatically a better one.
+    current = next((item for item in fitting if item[0] == config.ollama_model), None)
+    if current is not None:
+        return CleanupChoice(
+            reachable=True, budget_gb=budget, installed=installed,
+            best_installed=current[0], best_installed_gb=current[1],
+            note=f"{current[0]} fits in the {_gb(budget)} left after Whisper.",
+        )
 
     if fitting:
         name, needed = fitting[0]
@@ -745,7 +819,7 @@ def run(config: AppConfig, logger) -> Report:
     ]
 
     report = Report(
-        status=_worst([c.status for c in checks]),
+        status=_worst([c.status for c in checks if c.name not in ADVISORY_CHECKS]),
         signature=machine_signature(),
         machine=platform.node(),
         ran_at=datetime.now().isoformat(timespec="seconds"),
@@ -795,14 +869,24 @@ _MARKS = {OK: "[ ok ]", WARN: "[warn]", FAIL: "[FAIL]"}
 
 def format_report(report: Report) -> str:
     lines = [
-        "LocalSTT self-test",
+        "LocalSTT health",
         f"device {report.machine}  {report.ran_at}  ->  {report.status.upper()}",
         "",
     ]
-    for check in report.checks:
+
+    def render(check: Check) -> None:
         lines.append(f"{_MARKS[check.status]} {check.title}: {check.detail}")
         if check.hint and check.status != OK:
             lines.append(f"        {check.hint}")
+
+    for check in report.core:
+        render(check)
+    advisory = report.advisory
+    if advisory:
+        lines.append("")
+        lines.append("Extras -- dictation works without these:")
+        for check in advisory:
+            render(check)
     return "\n".join(lines)
 
 

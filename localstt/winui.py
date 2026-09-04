@@ -258,6 +258,28 @@ def work_area() -> tuple[int, int, int, int]:
     return (rect.left, rect.top, rect.right, rect.bottom)
 
 
+# Left, right, middle mouse buttons.
+_MOUSE_BUTTONS = (0x01, 0x02, 0x04)
+
+
+def mouse_click_since_last_call() -> bool:
+    """Whether a mouse button went down since the previous call, anywhere on screen.
+
+    GetAsyncKeyState's low bit answers this without a hook, a grab or the foreground,
+    which is what a borderless popup needs to know it was clicked away from.
+    """
+    if not IS_WINDOWS:
+        return False
+    clicked = False
+    try:
+        for button in _MOUSE_BUTTONS:
+            if ctypes.windll.user32.GetAsyncKeyState(button) & 0x0001:
+                clicked = True
+    except (AttributeError, OSError):
+        return False
+    return clicked
+
+
 def cursor_position() -> tuple[int, int]:
     if not IS_WINDOWS:
         return (0, 0)
