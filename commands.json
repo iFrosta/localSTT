@@ -1,0 +1,257 @@
+{
+  "version": 1,
+  "commands": [
+    {
+      "name": "system.lock",
+      "patterns": [
+        "заблокируй компьютер",
+        "заблокируй экран",
+        "заблокируй систему",
+        "lock the computer",
+        "lock the screen"
+      ],
+      "type": "process",
+      "command": "C:\\Windows\\System32\\rundll32.exe",
+      "args": [
+        "user32.dll,LockWorkStation"
+      ]
+    },
+    {
+      "name": "system.sleep",
+      "patterns": [
+        "отправь компьютер в сон",
+        "переведи компьютер в сон",
+        "уложи компьютер спать",
+        "put the computer to sleep"
+      ],
+      "type": "process",
+      "command": "C:\\Windows\\System32\\rundll32.exe",
+      "args": [
+        "powrprof.dll,SetSuspendState",
+        "0,1,0"
+      ]
+    },
+    {
+      "name": "terminal.powershell",
+      "patterns": [
+        "открой терминал powershell",
+        "открой powershell",
+        "открой пауэршелл",
+        "запусти powershell",
+        "open powershell",
+        "powershell",
+        "пауэршелл"
+      ],
+      "type": "process",
+      "command": "wt.exe",
+      "args": [
+        "-p",
+        "Windows PowerShell"
+      ],
+      "requires": [
+        "exe:wt.exe"
+      ]
+    },
+    {
+      "name": "terminal.wsl",
+      "patterns": [
+        "открой терминал ubuntu",
+        "открой убунту",
+        "открой wsl",
+        "open wsl",
+        "убунту"
+      ],
+      "type": "process",
+      "command": "wt.exe",
+      "args": [
+        "-p",
+        "Ubuntu"
+      ],
+      "requires": [
+        "exe:wt.exe",
+        "exe:wsl.exe"
+      ]
+    },
+    {
+      "name": "terminal.cmd",
+      "patterns": [
+        "открой терминал cmd",
+        "открой командную строку",
+        "командная строка",
+        "открой cmd",
+        "open the command prompt"
+      ],
+      "type": "process",
+      "command": "wt.exe",
+      "args": [
+        "-p",
+        "Command Prompt"
+      ],
+      "requires": [
+        "exe:wt.exe"
+      ]
+    },
+    {
+      "name": "terminal.open",
+      "patterns": [
+        "открой терминал",
+        "запусти терминал",
+        "новый терминал",
+        "open a terminal",
+        "терминал"
+      ],
+      "type": "process",
+      "command": "wt.exe",
+      "args": [],
+      "requires": [
+        "exe:wt.exe"
+      ]
+    },
+    {
+      "name": "terminal.fallback",
+      "patterns": [
+        "открой терминал",
+        "запусти терминал",
+        "новый терминал",
+        "open a terminal",
+        "терминал"
+      ],
+      "type": "process",
+      "command": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "args": [
+        "-NoExit"
+      ]
+    },
+    {
+      "name": "app.vscode",
+      "patterns": [
+        "открой vs code",
+        "открой vscode",
+        "запусти vs code",
+        "открой вс код",
+        "open vs code"
+      ],
+      "type": "process",
+      "command": "%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe",
+      "args": []
+    },
+    {
+      "name": "app.notepad",
+      "patterns": [
+        "открой блокнот",
+        "запусти блокнот",
+        "новый блокнот",
+        "open notepad",
+        "блокнот"
+      ],
+      "type": "process",
+      "command": "C:\\Windows\\System32\\notepad.exe",
+      "args": []
+    },
+    {
+      "name": "app.explorer",
+      "patterns": [
+        "открой проводник",
+        "запусти проводник",
+        "open explorer",
+        "проводник"
+      ],
+      "type": "process",
+      "command": "C:\\Windows\\explorer.exe",
+      "args": []
+    },
+    {
+      "name": "localstt.language.en",
+      "patterns": [
+        "переключи на английский",
+        "переключись на английский",
+        "английский язык",
+        "switch to english"
+      ],
+      "type": "localstt",
+      "action": "language",
+      "value": "en"
+    },
+    {
+      "name": "localstt.language.ru",
+      "patterns": [
+        "переключи на русский",
+        "переключись на русский",
+        "русский язык",
+        "switch to russian"
+      ],
+      "type": "localstt",
+      "action": "language",
+      "value": "ru"
+    },
+    {
+      "name": "localstt.language.auto",
+      "patterns": [
+        "определяй язык сам",
+        "автоопределение языка",
+        "detect the language"
+      ],
+      "type": "localstt",
+      "action": "language",
+      "value": "auto"
+    },
+    {
+      "name": "localstt.repeat",
+      "patterns": [
+        "повтори последний текст",
+        "повтори вставку",
+        "вставь еще раз",
+        "paste that again"
+      ],
+      "type": "localstt",
+      "action": "repeat"
+    },
+    {
+      "name": "localstt.delivery.typewrite",
+      "patterns": [
+        "печатай текст",
+        "режим печати",
+        "type the text"
+      ],
+      "type": "localstt",
+      "action": "delivery",
+      "value": "typewrite"
+    },
+    {
+      "name": "localstt.delivery.paste",
+      "patterns": [
+        "вставляй через буфер",
+        "режим вставки",
+        "paste the text"
+      ],
+      "type": "localstt",
+      "action": "delivery",
+      "value": "paste"
+    },
+    {
+      "name": "todo.create",
+      "patterns": [
+        "создай задачу *",
+        "создай заметку *",
+        "добавь задачу *",
+        "добавь в todo *",
+        "add todo *",
+        "add a task *"
+      ],
+      "type": "microsoft_todo",
+      "list": "Tasks"
+    },
+    {
+      "name": "app.open",
+      "patterns": [
+        "открой *",
+        "запусти *",
+        "открыть *",
+        "запустить *",
+        "open *",
+        "launch *"
+      ],
+      "type": "app_launch"
+    }
+  ]
+}
