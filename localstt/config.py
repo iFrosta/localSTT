@@ -6,6 +6,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from . import __version__
+
 
 APPDATA_DIR = Path(os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))) / "LocalSTT"
 CONFIG_PATH = APPDATA_DIR / "config.json"
@@ -92,6 +94,11 @@ class AppConfig:
     input_max_gain: float = 25.0
     history_enabled: bool = False
     performance_tracking: bool = True
+    # One GET to the GitHub releases API, at most once a day. Nothing about the machine
+    # is sent, but GitHub does see that the request happened -- hence the switch.
+    update_check_enabled: bool = True
+    update_repository: str = "iFrosta/localSTT"
+    update_check_interval_hours: float = 24.0
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model: str | None = None
     preferred_ollama_cleanup_models: list[str] = field(
@@ -158,6 +165,7 @@ def config_summary(config: AppConfig) -> dict[str, Any]:
         "history_enabled": config.history_enabled,
         "delivery_method": config.delivery_method,
         "copy_to_clipboard": config.copy_to_clipboard,
+        "version": __version__,
         "hotkeys": {
             "dictation": config.hotkey_dictation,
             "cleanup": config.hotkey_cleanup,

@@ -11,10 +11,12 @@ import json
 import os
 import subprocess
 import tkinter as tk
+import webbrowser
 from dataclasses import dataclass, field as dataclass_field
 from typing import Any, Callable
 
 from . import (
+    __version__,
     app_index,
     autostart,
     branding,
@@ -22,6 +24,7 @@ from . import (
     hotkeys,
     performance,
     preflight,
+    updates,
     winui,
 )
 from .command_runner import clear_availability_cache, command_statuses
@@ -133,7 +136,7 @@ def build_sections(config: AppConfig, gpu_total_gb: float | None, logger) -> lis
         compute_labels[compute] = f"{compute}  (~{needed:.1f} GB VRAM)" if needed else compute
 
     return [
-        Section("general", "General", "", fields=[
+        Section("general", "General", "", custom="general", fields=[
             Field("model", "Whisper model", "Larger models are more accurate and need more VRAM.",
                   kind="choice", options=list(config.allowed_models), restart=True),
             Field("compute_type", "Compute type",
@@ -152,6 +155,10 @@ def build_sections(config: AppConfig, gpu_total_gb: float | None, logger) -> lis
                   kind="toggle",
                   getter=autostart.is_enabled,
                   setter=lambda value: autostart.set_enabled(value, logger)),
+            Field("update_check_enabled", "Check for updates",
+                  "Asks GitHub once a day whether a newer release exists. One request, "
+                  "and nothing about this machine is sent -- but GitHub does see that it "
+                  "was made.", kind="toggle"),
         ]),
         Section("audio", "Audio", "", fields=[
             Field("microphone", "Microphone", kind="choice", options=mic_options, labels=mic_labels,
@@ -464,7 +471,9 @@ class SettingsWindow:
             return
 
         self._render_fields(section)
-        if section.custom == "cleanup":
+        if section.custom == "general":
+            self._render_version()
+        elif section.custom == "cleanup":
             self._render_cleanup()
         elif section.custom == "performance":
             self._render_performance()
@@ -670,6 +679,53 @@ class SettingsWindow:
         _run_off_ui(work)
 
     # ------------------------------------------------------------------ cleanup model
+
+    def _render_version(self) -> None:
+        px = self.theme.px
+        self._version_card = Card(self.content, self.theme)
+        self._version_card.pack_card(pady=(px(8), px(6)))
+        self._version_row = SettingRow(
+            self._version_card, self.theme, f"LocalSTT {__version__}",
+            "Ask GitHub whether there is a newer release.",
+        )
+        self._version_row.pack(fill="x")
+        Button(
+            self._version_row.control_area, self.theme, "Check now",
+            self._check_for_updates, background=self.theme.colors.card,
+        ).pack()
+
+    def _check_for_updates(self) -> None:
+        """Forced, so it answers even when today's automatic check already ran."""
+        self.status.configure(text="asking GitHub...")
+
+        def work() -> None:
+            update = updates.check(self.config, self.logger)
+            winui.UiThread.instance().submit(lambda: self._show_update(update))
+
+        _run_off_ui(work)
+
+    def _show_update(self, update) -> None:
+        try:
+            if not self._version_row.winfo_exists():  # the section was left while asking
+                return
+        except (tk.TclError, AttributeError):
+            return
+
+        if update is None:
+            self._version_row.set_description(
+                "This is the newest release, or GitHub could not be reached."
+            )
+        else:
+            self._version_row.set_description(
+                f"{update.label} \u2014 published {update.published[:10]}"
+            )
+            Button(
+                self._version_row.control_area, self.theme, f"Get {update.version}",
+                lambda url=update.url: webbrowser.open(url),
+                primary=True, background=self.theme.colors.card,
+            ).pack()
+        self._version_card.refresh()
+        self.status.configure(text="")
 
     def _render_cleanup(self) -> None:
         """What this GPU can actually run, and a way to get it if nothing here fits.

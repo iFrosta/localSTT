@@ -447,6 +447,19 @@ The last result is kept in `%APPDATA%\LocalSTT\preflight.json`.
 
 ---
 
+## Updates
+
+LocalSTT asks the GitHub releases API once a day whether a newer version has been
+published, and says so in the tray if there is one. It is one `GET`; nothing about the
+machine goes with it. `Settings → General` has the switch and a **Check now** button.
+
+Updating is manual, and depends on how it was installed: `git pull` in a clone, or
+download the newer archive from
+[Releases](https://github.com/iFrosta/localSTT/releases) and unzip it over the folder.
+Settings, history and the model cache live outside the folder, so neither loses them.
+
+---
+
 ## Autostart
 
 `Settings → General → Start with Windows` adds or removes a shortcut in the Startup
@@ -543,8 +556,12 @@ interface, and `text_input.py`, `window_focus.py`, `winui.py`, `tray_menu.py` an
 
 - Audio never leaves the machine. Recognition is local; cleanup talks to Ollama on
   `127.0.0.1`.
-- The only outbound request is downloading the model from Hugging Face the first time,
-  and whatever Ollama does when you tell it to pull one.
+- Two things reach the network, and nothing else: the model is downloaded from Hugging
+  Face the first time, and — once a day — the GitHub releases API is asked whether a
+  newer version exists. The update check sends nothing about the machine, but GitHub
+  sees the request and therefore the address it came from. Turn it off in
+  `Settings → General → Check for updates`, or set `update_check_enabled` to `false`.
+  Pulling an Ollama model is a third, and only when you ask for it.
 - Dictation history is **off** by default. With it on, every transcript is stored in
   plain text in `%APPDATA%\LocalSTT\history.jsonl`.
 - The clipboard is left alone by default.

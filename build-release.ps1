@@ -48,6 +48,7 @@ param(
 $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $false
 $root = $PSScriptRoot
+. (Join-Path $PSScriptRoot "_env.ps1")
 
 function Write-Step($text) { Write-Host "`n==> $text" -ForegroundColor Cyan }
 function Write-Ok($text)   { Write-Host "    $text" -ForegroundColor Green }
@@ -91,25 +92,24 @@ Write-Step "Building $name"
 Write-Step "Choosing the Python to bundle"
 
 if (-not $Python) {
-    foreach ($candidate in @("py.exe", "python.exe")) {
-        $found = Get-Command $candidate -ErrorAction SilentlyContinue
-        if ($found) {
-            $Python = if ($candidate -eq "py.exe") { "$($found.Source)|-3.12" } else { $found.Source }
-            break
-        }
+    # The same search install.ps1 uses, and for the same reason: it runs each candidate
+    # before believing in it. Windows puts a Microsoft Store stub called python.exe on
+    # PATH that only prints an advert, and taking the first name that resolves finds
+    # that one.
+    $found = Find-LocalSttPython
+    if (-not $found) {
+        throw "No 64-bit Python 3.10 - 3.13 found. Pass -Python <path to python.exe>."
     }
+    $Python = $found.Path
 }
-if (-not $Python) { throw "No Python found. Pass -Python <path to python.exe>." }
-
-$exe, $prefix = $Python -split "\|", 2
-$arguments = @()
-if ($prefix) { $arguments += $prefix }
 
 # A virtual environment is not copyable: its pyvenv.cfg points at the real installation
 # by absolute path. base_prefix is that installation, whichever was handed to us.
 $probe = "import sys;print(sys.base_prefix);print('{}.{}.{}'.format(*sys.version_info[:3]))"
-$answer = & $exe @arguments -c $probe
-if ($LASTEXITCODE -ne 0) { throw "Could not run $exe" }
+$answer = & $Python -c $probe
+if ($LASTEXITCODE -ne 0) {
+    throw "Could not run $Python. If that is the Microsoft Store stub, pass -Python with a real installation."
+}
 $basePrefix, $pythonVersion = $answer
 
 if (-not (Test-Path (Join-Path $basePrefix "python.exe"))) {

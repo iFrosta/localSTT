@@ -6,6 +6,7 @@ import sys
 import tempfile
 import threading
 import time
+import webbrowser
 from enum import Enum
 from pathlib import Path
 
@@ -35,7 +36,7 @@ from .config import (
 )
 from .ollama_cleanup import polish_text
 from .service import STTService
-from . import branding, hotkeys, settings_window, text_input, tray_menu
+from . import branding, hotkeys, settings_window, text_input, tray_menu, updates
 from .tray_menu import MenuItem, separator
 from .window_focus import get_foreground_window, set_foreground_window
 
@@ -109,6 +110,7 @@ class LocalSTTTrayApp:
         self.chord_keys: frozenset[str] = frozenset()
         self.state_lock = threading.RLock()
         self.listener: keyboard.Listener | None = None
+        self.update: updates.Update | None = None
         self._refresh_bindings()
 
     def run(self) -> None:
@@ -121,6 +123,9 @@ class LocalSTTTrayApp:
             self._start_api()
             self._start_hotkeys()
             self._set_state(AppState.READY)
+            # After the app is usable, never before: a slow network must not delay the
+            # first dictation, and being offline must not look like a failed start.
+            threading.Thread(target=self._check_updates, daemon=True).start()
         except Exception as exc:
             self.service.logger.exception("LocalSTT startup failed: %s", exc)
             self._set_state(AppState.ERROR)
@@ -141,6 +146,21 @@ class LocalSTTTrayApp:
         self.listener = keyboard.Listener(on_press=self._on_press, on_release=self._on_release)
         self.listener.start()
         self._log_bindings("global hotkeys ready")
+
+    def _check_updates(self) -> None:
+        try:
+            update = updates.check_if_due(self.config, self.service.logger)
+        except Exception:
+            self.service.logger.debug("update check failed", exc_info=True)
+            return
+        if update is None:
+            return
+        self.update = update
+        self._notify("LocalSTT", f"{update.label}. Open the tray menu to get it.")
+
+    def _open_update(self) -> None:
+        if self.update is not None:
+            webbrowser.open(self.update.url)
 
     def _log_bindings(self, headline: str) -> None:
         self.service.logger.info(
@@ -650,7 +670,13 @@ class LocalSTTTrayApp:
         tray_menu.popup(self._menu_items())
 
     def _menu_items(self) -> list[MenuItem]:
-        return [
+        items: list[MenuItem] = []
+        if self.update is not None:
+            # Only ever present when there is something to say, so the menu does not
+            # carry a permanent row about updates that are not there.
+            items.append(MenuItem(self.update.label, self._open_update, icon="\ue896"))
+            items.append(separator())
+        items += [
             MenuItem("Settings", self._open_settings, icon="\ue713"),
             separator(),
             MenuItem("Language", icon="\uf2b7", submenu=self._language_items()),
@@ -672,6 +698,7 @@ class LocalSTTTrayApp:
             MenuItem("Restart LocalSTT", self._restart, icon="\ue72c"),
             MenuItem("Exit", self._exit, icon="\ue7e8"),
         ]
+        return items
 
     def _microphone_items(self) -> list[MenuItem]:
         mics = list_microphones()
