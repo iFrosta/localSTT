@@ -25,6 +25,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from . import hotkeys
 from .config import APPDATA_DIR, AppConfig
 
 PREFLIGHT_PATH = APPDATA_DIR / "preflight.json"
@@ -735,7 +736,8 @@ def check_ollama(config: AppConfig, gpu: dict[str, Any] | None) -> Check:
     if models is None:
         return Check(
             "ollama", title, WARN, f"no answer from {config.ollama_base_url}",
-            "Cleanup dictation (Ctrl+Shift+Win) needs Ollama running. Plain dictation works without it.",
+            f"Cleanup dictation ({hotkeys.chord_label(config.hotkey_cleanup)}) needs Ollama "
+            "running. Plain dictation works without it.",
         )
     if not models:
         return Check(

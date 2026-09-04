@@ -14,10 +14,28 @@ import tkinter as tk
 from dataclasses import dataclass, field as dataclass_field
 from typing import Any, Callable
 
-from . import app_index, autostart, branding, cleanup_model, performance, preflight, winui
+from . import (
+    app_index,
+    autostart,
+    branding,
+    cleanup_model,
+    hotkeys,
+    performance,
+    preflight,
+    winui,
+)
 from .command_runner import clear_availability_cache, command_statuses
 from .config import COMMANDS_PATH, CONFIG_PATH, HISTORY_PATH, AppConfig, save_config
-from .widgets import Button, Card, Dropdown, SettingRow, TextField, Theme, ToggleSwitch
+from .widgets import (
+    Button,
+    Card,
+    Dropdown,
+    HotkeyField,
+    SettingRow,
+    TextField,
+    Theme,
+    ToggleSwitch,
+)
 
 RESTART_NOTE = "Applied when LocalSTT restarts."
 
@@ -35,7 +53,7 @@ class Field:
     key: str
     title: str
     description: str = ""
-    kind: str = "text"  # toggle | choice | number | text
+    kind: str = "text"  # toggle | choice | number | text | hotkey
     options: list[str] = dataclass_field(default_factory=list)
     labels: dict[str, str] = dataclass_field(default_factory=dict)
     parse: Callable[[str], Any] | None = None
@@ -136,20 +154,39 @@ def build_sections(config: AppConfig, gpu_total_gb: float | None, logger) -> lis
                   "Quiet microphones are amplified up to this peak. 0 disables it.", kind="number"),
             Field("input_max_gain", "Maximum gain", "Ceiling for that amplification.", kind="number"),
         ]),
-        Section("delivery", "Delivery", "", fields=[
+        Section("hotkeys", "Hotkeys", "", fields=[
+            Field("hotkey_dictation", "Dictation",
+                  "Hold to talk, or tap to start and tap again to stop. Whichever chord "
+                  "started a recording, any of them stops it.", kind="hotkey"),
+            Field("hotkey_cleanup", "Dictation with cleanup",
+                  "Runs the transcript through the local Ollama model before delivering it.",
+                  kind="hotkey"),
+            Field("hotkey_command", "Voice command",
+                  "Nothing is typed; what was said is matched against commands.json.",
+                  kind="hotkey"),
+            Field("cancel_on_escape", "A key cancels a recording",
+                  "Nothing is transcribed, delivered or run.", kind="toggle"),
+            Field("hotkey_cancel", "Cancel key", kind="hotkey"),
+            Field("hotkey_tap_seconds", "Tap threshold",
+                  "Holding the hotkey longer than this makes it push-to-talk.", kind="number"),
+            Field("hotkey_mode_grace_seconds", "Chord grace period",
+                  "How long to wait for the rest of the chord before deciding the mode. A "
+                  "chord that extends another one has to be complete within this.",
+                  kind="number"),
+        ]),
+        Section("delivery", "Delivery", "", fields=[
             Field("delivery_method", "How text is delivered",
                   "Paste is instant; typewrite works in fields that block paste.",
                   kind="choice", options=["paste", "typewrite"],
                   labels={"paste": "Paste (Ctrl+V)", "typewrite": "Type character by character"}),
-            Field("restore_clipboard_after_paste", "Restore clipboard afterwards", kind="toggle"),
-            Field("paste_restore_delay_seconds", "Clipboard restore delay", kind="number"),
-            Field("typewrite_interval_seconds", "Typing interval", kind="number"),
-            Field("cancel_on_escape", "Escape cancels a recording", kind="toggle"),
-            Field("hotkey_tap_seconds", "Tap threshold",
-                  "Holding the hotkey longer than this makes it push-to-talk.", kind="number"),
-            Field("hotkey_mode_grace_seconds", "Chord grace period",
-                  "How long to wait for the rest of the chord before deciding the mode.",
+            Field("copy_to_clipboard", "Leave the transcript in the clipboard",
+                  "Off by default: typing the text needs no clipboard, so whatever you had "
+                  "copied stays there. Paste delivery borrows the clipboard either way and "
+                  "puts the old contents back.", kind="toggle"),
+            Field("paste_restore_delay_seconds", "Clipboard restore delay",
+                  "How long to wait before putting the previous clipboard back.",
                   kind="number"),
+            Field("typewrite_interval_seconds", "Typing interval", kind="number"),
         ]),
         Section("commands", "Voice commands", "", custom="commands", fields=[
             Field("commands_enabled", "Voice commands", kind="toggle"),
@@ -472,6 +509,15 @@ class SettingsWindow:
             )
             toggle.pack()
             self.controls[field.key] = toggle
+            return
+
+        if field.kind == "hotkey":
+            hotkey = HotkeyField(
+                parent, self.theme, str(value or ""),
+                lambda v, f=field: self._stage(f, v),
+            )
+            hotkey.pack()
+            self.controls[field.key] = hotkey
             return
 
         if field.kind == "choice":
@@ -987,9 +1033,39 @@ class SettingsWindow:
 
     # ------------------------------------------------------------------ save
 
+    def _staged(self, key: str) -> Any:
+        """What the field holds right now: an unsaved edit, else what was saved."""
+        return self.pending.get(key, getattr(self.config, key))
+
+    def _hotkey_conflict(self) -> str | None:
+        """Two of them on one chord would leave whatever loses the tie unreachable."""
+        titles = {
+            "hotkey_dictation": "Dictation",
+            "hotkey_cleanup": "Dictation with cleanup",
+            "hotkey_command": "Voice command",
+            "hotkey_cancel": "Cancel",
+        }
+        cancels = self._staged("cancel_on_escape")
+        seen: dict[frozenset[str], str] = {}
+        for key, title in titles.items():
+            if key == "hotkey_cancel" and not cancels:
+                continue
+            chord = hotkeys.parse_chord(self._staged(key))
+            if not chord:
+                continue
+            if chord in seen:
+                return f"{seen[chord]} and {title} would share {hotkeys.chord_label(chord)}"
+            seen[chord] = title
+        return None
+
     def _save(self) -> None:
         applied: list[str] = []
         problems: list[str] = []
+
+        conflict = self._hotkey_conflict()
+        if conflict:
+            self.status.configure(text=conflict)
+            return
 
         for key, raw in self.pending.items():
             current = getattr(self.config, key)
@@ -1029,6 +1105,9 @@ class SettingsWindow:
         self.close()
 
     def close(self) -> None:
+        for control in self.controls.values():
+            if isinstance(control, HotkeyField):
+                control.cancel()
         try:
             self.window.unbind_all("<MouseWheel>")
             self.window.destroy()

@@ -35,7 +35,7 @@ from .config import (
 )
 from .ollama_cleanup import polish_text
 from .service import STTService
-from . import branding, settings_window, text_input, tray_menu
+from . import branding, hotkeys, settings_window, text_input, tray_menu
 from .tray_menu import MenuItem, separator
 from .window_focus import get_foreground_window, set_foreground_window
 
@@ -104,8 +104,12 @@ class LocalSTTTrayApp:
         self.stop_in_progress = False
         self.hotkey_down_at: float | None = None
         self.target_hwnd: int | None = None
+        self.bindings: dict[str, frozenset[str]] = {}
+        self.cancel_chord: frozenset[str] = frozenset()
+        self.chord_keys: frozenset[str] = frozenset()
         self.state_lock = threading.RLock()
         self.listener: keyboard.Listener | None = None
+        self._refresh_bindings()
 
     def run(self) -> None:
         threading.Thread(target=self._bootstrap, daemon=True).start()
@@ -136,27 +140,68 @@ class LocalSTTTrayApp:
     def _start_hotkeys(self) -> None:
         self.listener = keyboard.Listener(on_press=self._on_press, on_release=self._on_release)
         self.listener.start()
+        self._log_bindings("global hotkeys ready")
+
+    def _log_bindings(self, headline: str) -> None:
         self.service.logger.info(
-            "global hotkeys ready: Ctrl+Win=dictation, Ctrl+Shift+Win=cleanup, Ctrl+Alt+Win=command "
-            "(command auto-stop=%s); Ctrl+Win always stops the active recording, Esc cancels it (%s)",
+            "%s: %s=dictation, %s=cleanup, %s=command (command auto-stop=%s); any of them "
+            "stops the active recording, %s cancels it (%s)",
+            headline,
+            hotkeys.chord_label(self.config.hotkey_dictation),
+            hotkeys.chord_label(self.config.hotkey_cleanup),
+            hotkeys.chord_label(self.config.hotkey_command),
             self.config.command_auto_stop,
+            hotkeys.chord_label(self.config.hotkey_cancel),
             self.config.cancel_on_escape,
         )
 
+    def _refresh_bindings(self) -> None:
+        """Parsed once per change: _on_press runs for every key the machine ever types."""
+        with self.state_lock:
+            self.bindings = {
+                "dictation": hotkeys.parse_chord(self.config.hotkey_dictation),
+                "cleanup": hotkeys.parse_chord(self.config.hotkey_cleanup),
+                "command": hotkeys.parse_chord(self.config.hotkey_command),
+            }
+            self.cancel_chord = hotkeys.parse_chord(self.config.hotkey_cancel)
+            self.chord_keys = frozenset().union(*self.bindings.values())
+
+    def _match_binding(self, keys: set[str]) -> str | None:
+        """The most specific binding fully held.
+
+        Bindings overlap on purpose -- cleanup is dictation plus Shift -- so the longest
+        chord wins, and an empty binding (a setting the user cleared) matches nothing.
+        """
+        best: str | None = None
+        best_size = 0
+        for mode, chord in self.bindings.items():
+            if chord and len(chord) > best_size and chord <= keys:
+                best, best_size = mode, len(chord)
+        return best
+
+    def _ignore_while_rebinding(self) -> bool:
+        """The settings window is recording a chord; those keys are not ours to act on."""
+        if not hotkeys.suspended():
+            return False
+        with self.state_lock:
+            self.pressed.clear()
+        return True
+
     def _on_press(self, key) -> None:
-        name = self._key_name(key)
-        if name is None:
+        name = hotkeys.key_name(key)
+        if name is None or self._ignore_while_rebinding():
             return
         should_start = False
         should_stop = False
         should_cancel = False
         session = 0
         with self.state_lock:
-            was_down = self._ctrl_win_down()
+            matched_before = self._match_binding(self.pressed)
             self.pressed.add(name)
             if (
-                name == "esc"
-                and self.config.cancel_on_escape
+                self.config.cancel_on_escape
+                and self.cancel_chord
+                and self.cancel_chord <= self.pressed
                 and self.recording_mode is not None
                 and not self.stop_in_progress
             ):
@@ -165,9 +210,15 @@ class LocalSTTTrayApp:
                 should_cancel = True
             if self.recording_mode == MODE_PENDING:
                 self.chord_modifiers.add(name)
-            # Only a fresh Ctrl+Win chord starts or stops a recording. Modifiers pressed
-            # afterwards (the Alt of Ctrl+Alt+Win) must not count as a second press.
-            if not should_cancel and self._ctrl_win_down() and not was_down and not self.stop_in_progress:
+            # Only a freshly completed chord starts or stops a recording. Modifiers
+            # pressed afterwards (the Alt that turns dictation into a command) extend
+            # the chord that is already held and must not count as a second press.
+            if (
+                not should_cancel
+                and matched_before is None
+                and self._match_binding(self.pressed) is not None
+                and not self.stop_in_progress
+            ):
                 if self.recording_mode is None:
                     self.session_id += 1
                     session = self.session_id
@@ -185,11 +236,13 @@ class LocalSTTTrayApp:
         elif should_start:
             threading.Thread(target=self._start_recording, args=(session,), daemon=True).start()
         elif should_stop:
-            self.service.logger.info("recording stop requested by Ctrl+Win press session=%s", session)
+            self.service.logger.info("recording stop requested by hotkey press session=%s", session)
             threading.Thread(target=self._stop_transcribe_paste, args=(session,), daemon=True).start()
 
     def _on_release(self, key) -> None:
-        name = self._key_name(key)
+        name = hotkeys.key_name(key)
+        if self._ignore_while_rebinding():
+            return
         should_stop = False
         session = 0
         with self.state_lock:
@@ -199,7 +252,7 @@ class LocalSTTTrayApp:
             if (
                 self.recording_mode is not None
                 and not self.stop_in_progress
-                and not self._ctrl_win_down()
+                and self._match_binding(self.pressed) is None
                 and held_for >= self.config.hotkey_tap_seconds
             ):
                 mode = self._resolve_mode_locked()
@@ -213,18 +266,10 @@ class LocalSTTTrayApp:
             self.service.logger.info("recording stop requested by hotkey release session=%s", session)
             threading.Thread(target=self._stop_transcribe_paste, args=(session,), daemon=True).start()
 
-    def _ctrl_win_down(self) -> bool:
-        return "ctrl" in self.pressed and "win" in self.pressed
-
     def _resolve_mode_locked(self) -> str | None:
-        """Decide the mode from every modifier seen while the chord was held."""
+        """Decide the mode from every key seen while the chord was held."""
         if self.recording_mode == MODE_PENDING:
-            if "alt" in self.chord_modifiers:
-                self.recording_mode = "command"
-            elif "shift" in self.chord_modifiers:
-                self.recording_mode = "cleanup"
-            else:
-                self.recording_mode = "dictation"
+            self.recording_mode = self._match_binding(self.chord_modifiers) or "dictation"
         return self.recording_mode
 
     def _claim_stop(self, session: int) -> bool:
@@ -521,19 +566,27 @@ class LocalSTTTrayApp:
         LAST_TRANSCRIPT_PATH.write_text(text, encoding="utf-8")
 
     def _paste_text(self, text: str) -> None:
-        old = pyperclip.paste()
         self._save_last_transcript(text)
-        clipboard_ready = self._set_clipboard_text(text)
+        method = self.config.delivery_method.lower().strip()
+        keep = self.config.copy_to_clipboard
+        # Paste delivery goes through the clipboard whatever the setting says; typewrite
+        # only touches it when the transcript is meant to stay there afterwards. Anything
+        # put there against the setting is borrowed, and given back below.
+        use_clipboard = keep or method != "typewrite"
+        borrowed = use_clipboard and not keep
+        old = pyperclip.paste() if borrowed else ""
+        clipboard_ready = self._set_clipboard_text(text) if use_clipboard else False
         hotkeys_released = self._wait_for_hotkeys_released()
         focused = set_foreground_window(self.target_hwnd)
-        method = self.config.delivery_method.lower().strip()
         self.service.logger.info(
-            "delivering %s chars method=%s focused_target=%s hotkeys_released=%s clipboard_ready=%s",
+            "delivering %s chars method=%s focused_target=%s hotkeys_released=%s "
+            "clipboard_ready=%s keep_clipboard=%s",
             len(text),
             method,
             focused,
             hotkeys_released,
             clipboard_ready,
+            keep,
         )
         time.sleep(0.25)
         try:
@@ -545,13 +598,21 @@ class LocalSTTTrayApp:
                         "typewrite failed (SendInput last error=%s), falling back to clipboard paste",
                         text_input.last_error,
                     )
+                    # The fallback needs the clipboard even when the transcript was not
+                    # meant to go there, so put back what it held once the paste is done.
+                    if not keep:
+                        borrowed = True
+                        old = pyperclip.paste()
+                    self._set_clipboard_text(text)
                     self._send_ctrl_v()
             else:
                 self._send_ctrl_v()
         except Exception:
-            self.service.logger.exception("text delivery failed; transcript remains in clipboard and last-transcript.txt")
+            self.service.logger.exception(
+                "text delivery failed; the transcript is in last-transcript.txt"
+            )
 
-        if self.config.restore_clipboard_after_paste:
+        if borrowed:
             time.sleep(self.config.paste_restore_delay_seconds)
             try:
                 if pyperclip.paste() == text:
@@ -580,7 +641,7 @@ class LocalSTTTrayApp:
         deadline = time.perf_counter() + 1.5
         while time.perf_counter() < deadline:
             with self.state_lock:
-                if not ({"ctrl", "win", "shift"} & self.pressed):
+                if not (self.chord_keys & self.pressed):
                     return True
             time.sleep(0.02)
         return False
@@ -677,7 +738,7 @@ class LocalSTTTrayApp:
 
     def _delivery_items(self) -> list[MenuItem]:
         labels = {"paste": "Paste", "typewrite": "Typewrite"}
-        return [
+        items = [
             MenuItem(
                 labels.get(method, method),
                 (lambda value=method: self._set_delivery_method(value)),
@@ -686,6 +747,16 @@ class LocalSTTTrayApp:
             )
             for method in ["paste", "typewrite"]
         ]
+        items.append(separator())
+        items.append(
+            MenuItem(
+                "Copy to clipboard",
+                self._toggle_copy_to_clipboard,
+                icon="\ue8c8",
+                checked=self.config.copy_to_clipboard,
+            )
+        )
+        return items
 
     def _open_settings(self) -> None:
         settings_window.open_settings(self.config, self.service.logger, self._on_settings_saved)
@@ -697,6 +768,9 @@ class LocalSTTTrayApp:
             self.service.backend.beam_size = self.config.beam_size
         if "vad_filter" in keys:
             self.service.backend.vad_filter = self.config.vad_filter
+        if any(key.startswith("hotkey_") for key in keys):
+            self._refresh_bindings()
+            self._log_bindings("hotkeys rebound")
         self._notify("LocalSTT", "Settings saved")
 
     def _set_delivery_method(self, method: str) -> None:
@@ -704,6 +778,14 @@ class LocalSTTTrayApp:
         save_config(self.config)
         self.service.logger.info("delivery method changed to %s", method)
         self._notify("LocalSTT delivery", method)
+
+    def _toggle_copy_to_clipboard(self) -> None:
+        self.config.copy_to_clipboard = not self.config.copy_to_clipboard
+        save_config(self.config)
+        state = "on" if self.config.copy_to_clipboard else "off"
+        self.service.logger.info("copy to clipboard set to %s", state)
+        self._notify("LocalSTT delivery", f"Copy to clipboard: {state}")
+
     def _toggle_command_auto_stop(self) -> None:
         self.config.command_auto_stop = not self.config.command_auto_stop
         save_config(self.config)
@@ -771,16 +853,3 @@ class LocalSTTTrayApp:
 
     def _image(self, state: AppState) -> Image.Image:
         return branding.render_icon(COLORS[state])
-
-    def _key_name(self, key) -> str | None:
-        if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r):
-            return "ctrl"
-        if key in (keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r):
-            return "win"
-        if key in (keyboard.Key.shift, keyboard.Key.shift_l, keyboard.Key.shift_r):
-            return "shift"
-        if key in (keyboard.Key.alt, keyboard.Key.alt_l, keyboard.Key.alt_r):
-            return "alt"
-        if key == keyboard.Key.esc:
-            return "esc"
-        return None

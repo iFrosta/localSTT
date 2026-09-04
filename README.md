@@ -34,6 +34,13 @@ into sections, plus the command list, the history, the timings and the self-test
 `Open config.json` at the bottom still edits the file by hand. Changing the model,
 compute type or API port needs a restart; everything else applies on save.
 
+The clipboard is left alone by default. Typing the text needs no clipboard, so
+whatever you had copied stays there; turn on `Settings -> Delivery -> Leave the
+transcript in the clipboard` (or the tray's `Delivery -> Copy to clipboard`) to have
+each transcript end up there as well. Paste delivery has to borrow the clipboard, so
+with the setting off it puts the old contents back afterwards. Either way the last
+transcript is written to `%APPDATA%\LocalSTT\last-transcript.txt`.
+
 History is off by default: with it on, every transcript is appended to
 `%APPDATA%\LocalSTT\history.jsonl` and listed in `Settings -> History` by date, in the
 order it was recorded.
@@ -64,8 +71,21 @@ Hotkeys:
 - `Ctrl+Win`: dictation. Hold and release, or tap to start and tap again to stop; the text is transcribed and delivered into the focused field.
 - `Ctrl+Shift+Win`: dictation with cleanup through the local Ollama model before delivery.
 - `Ctrl+Alt+Win`: voice command. Nothing is typed; the transcript is matched against `commands.json`.
-- `Ctrl+Win` stops whatever recording is running, whichever mode started it.
+- Any of the three stops whatever recording is running, whichever mode started it.
 - `Esc` cancels the current recording: nothing is transcribed, pasted or executed (`cancel_on_escape`).
+
+Those are the defaults. `Settings -> Hotkeys` rebinds each of them: click the field,
+press the combination, let go. Any key can take part, not only modifiers -- `F9` or
+`Ctrl+Alt+D` work as well as `Ctrl+Win` -- and the glyph on the right of the field
+clears a binding so that mode has no hotkey at all. The chords are stored in
+`config.json` as `hotkey_dictation`, `hotkey_cleanup`, `hotkey_command` and
+`hotkey_cancel` (`"ctrl+shift+win"`), and a new one takes effect on save without a
+restart. Two modes cannot share a chord: saving says so instead.
+
+A mode whose chord extends another one -- cleanup is dictation plus `Shift` -- is
+recognised through `hotkey_mode_grace_seconds`: the recording starts on the first
+chord and the mode is settled once that grace period has passed, so the extra key
+has to arrive within it.
 
 Voice commands:
 

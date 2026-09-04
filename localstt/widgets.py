@@ -11,10 +11,11 @@ import tkinter as tk
 from tkinter import font as tkfont
 from typing import Callable, Sequence
 
-from . import winui
+from . import hotkeys, winui
 from .tray_menu import ICON_FONT, ICON_FONT_FALLBACK, MenuItem, Win11Menu
 
 GLYPH_CHEVRON_DOWN = "\ue70d"  # ChevronDown, Segoe Fluent Icons
+GLYPH_CLEAR = "\ue894"  # Clear
 
 
 class Theme:
@@ -363,6 +364,137 @@ class TextField(tk.Frame):
 
     def set(self, value: str) -> None:
         self.var.set(value)
+
+
+class HotkeyField(tk.Canvas):
+    """Records a key combination: click it, press the keys, let go.
+
+    Tk never sees the Windows key -- the shell swallows it -- so the chord is read with
+    the same global listener that later has to recognise it. While it is open the tray
+    listener stands down, or recording Ctrl+Win would start a dictation instead.
+    """
+
+    PROMPT = "Press a key combination\u2026"
+
+    # Nothing stops the mouse from reaching a second field mid-capture, and two open
+    # captures would both claim the keys that follow.
+    _active: "HotkeyField | None" = None
+
+    def __init__(
+        self,
+        parent: tk.Misc,
+        theme: Theme,
+        value: str,
+        on_change: Callable[[str], None],
+        *,
+        width: int = 240,
+    ) -> None:
+        self.theme = theme
+        self.value = value or ""
+        self.on_change = on_change
+        self.capture: hotkeys.Capture | None = None
+        self._preview = ""
+        self._hover = False
+        self._width = theme.px(width)
+        self._height = theme.px(32)
+        self._clear_zone = theme.px(30)
+        super().__init__(
+            parent, width=self._width, height=self._height,
+            bg=parent["bg"], highlightthickness=0, bd=0, cursor="hand2",
+        )
+        self.bind("<Button-1>", self._click)
+        self.bind("<Enter>", lambda e: self._set_hover(True))
+        self.bind("<Leave>", lambda e: self._set_hover(False))
+        self.bind("<Destroy>", lambda e: self.cancel())
+        self._draw()
+
+    # The pynput listener runs on a thread of its own; Tk may only be touched from
+    # the thread that owns the window.
+    def _on_ui_thread(self, work: Callable[[], None]) -> None:
+        try:
+            self.after(0, work)
+        except tk.TclError:
+            pass
+
+    def _click(self, event) -> None:
+        if self.capture is not None:
+            self.cancel()
+            return
+        if self.value and event.x >= self._width - self._clear_zone:
+            self._commit("")
+            return
+        if HotkeyField._active is not None:
+            HotkeyField._active.cancel()
+        HotkeyField._active = self
+        self._preview = ""
+        self.capture = hotkeys.Capture(
+            on_change=lambda chord: self._on_ui_thread(lambda: self._show_preview(chord)),
+            on_done=lambda chord: self._on_ui_thread(lambda: self._finish(chord)),
+        )
+        self.capture.start()
+        self._draw()
+
+    def cancel(self) -> None:
+        if HotkeyField._active is self:
+            HotkeyField._active = None
+        capture, self.capture = self.capture, None
+        if capture is not None:
+            capture.stop()
+        self._preview = ""
+        try:
+            self._draw()
+        except tk.TclError:
+            pass
+
+    def _show_preview(self, chord: str) -> None:
+        if self.capture is None:
+            return
+        self._preview = chord
+        self._draw()
+
+    def _finish(self, chord: str) -> None:
+        self.cancel()
+        self._commit(chord)
+
+    def _commit(self, chord: str) -> None:
+        self.value = chord
+        self._draw()
+        self.on_change(chord)
+
+    def set(self, value: str) -> None:
+        self.value = value or ""
+        self._draw()
+
+    def _set_hover(self, hover: bool) -> None:
+        self._hover = hover
+        self._draw()
+
+    def _draw(self) -> None:
+        self.delete("all")
+        colors = self.theme.colors
+        capturing = self.capture is not None
+        if capturing:
+            fill, outline = colors.card, colors.accent
+            text = hotkeys.chord_label(self._preview) if self._preview else self.PROMPT
+            color = colors.accent if self._preview else colors.text_secondary
+        else:
+            fill = colors.hover if self._hover else colors.window
+            outline = colors.divider
+            text = hotkeys.chord_label(self.value)
+            color = colors.text if self.value else colors.text_secondary
+        winui.round_rect(
+            self, 1, 1, self._width - 1, self._height - 1, self.theme.px(4),
+            fill=fill, outline=outline,
+        )
+        self.create_text(
+            self.theme.px(12), self._height / 2, text=text,
+            font=self.theme.font, fill=color, anchor="w",
+        )
+        if self.value and not capturing:
+            self.create_text(
+                self._width - self.theme.px(12), self._height / 2, text=GLYPH_CLEAR,
+                font=self.theme.font_icon_small, fill=colors.text_secondary, anchor="e",
+            )
 
 
 class SettingRow(tk.Frame):

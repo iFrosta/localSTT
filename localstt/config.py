@@ -51,9 +51,15 @@ class AppConfig:
     )
     ollama_timeout_seconds: float = 20.0
     paste_restore_delay_seconds: float = 0.8
-    restore_clipboard_after_paste: bool = False
+    # Off by default: typewrite delivers the text without the clipboard, so leaving the
+    # transcript there afterwards would overwrite whatever the user had copied.
+    copy_to_clipboard: bool = False
     delivery_method: str = "typewrite"
     typewrite_interval_seconds: float = 0.001
+    hotkey_dictation: str = "ctrl+win"
+    hotkey_cleanup: str = "ctrl+shift+win"
+    hotkey_command: str = "ctrl+alt+win"
+    hotkey_cancel: str = "esc"
     hotkey_tap_seconds: float = 0.45
     hotkey_mode_grace_seconds: float = 0.2
     cancel_on_escape: bool = True
@@ -97,6 +103,13 @@ def config_summary(config: AppConfig) -> dict[str, Any]:
         "api": f"http://{config.api_host}:{config.api_port}",
         "history_enabled": config.history_enabled,
         "delivery_method": config.delivery_method,
+        "copy_to_clipboard": config.copy_to_clipboard,
+        "hotkeys": {
+            "dictation": config.hotkey_dictation,
+            "cleanup": config.hotkey_cleanup,
+            "command": config.hotkey_command,
+            "cancel": config.hotkey_cancel if config.cancel_on_escape else None,
+        },
         "commands_enabled": config.commands_enabled,
         "command_auto_stop": config.command_auto_stop,
         "ollama_model": config.ollama_model,
