@@ -376,19 +376,43 @@ class Win11Menu:
         child = Win11Menu(item.submenu, parent=self)
         child.owner_index = index
         self.child = child
-        x = self.window.winfo_rootx() + self.width - self._px(4)
-        y = self.window.winfo_rooty() + self._row_top(index) - self.pad
-        child.show_at(x, y, take_focus=False)
 
-    def show_at(self, x: int, y: int, *, take_focus: bool = True) -> None:
+        left = self.window.winfo_rootx()
+        overlap = self._px(4)
+        x = left + self.width - overlap
+        # Where it goes when there is no room on the right: the far side of this menu,
+        # not on top of it. The tray is in the bottom-right corner, so that is not a
+        # corner case -- it is what happens every time.
+        beside = left - (child.width + 2) + overlap
+        y = self.window.winfo_rooty() + self._row_top(index) - self.pad
+        child.show_at(x, y, take_focus=False, flip_x=beside, slide_y=True)
+
+    def show_at(
+        self,
+        x: int,
+        y: int,
+        *,
+        take_focus: bool = True,
+        flip_x: int | None = None,
+        slide_y: bool = False,
+    ) -> None:
+        """Place the popup, keeping it inside the work area.
+
+        A menu opened at the cursor flips to the other side of it. A submenu passes
+        `flip_x` -- the position on the far side of its parent -- and `slide_y`, because
+        it should slide up far enough to fit rather than jump above its own row.
+        """
         left, top, right, bottom = winui.work_area()
         width = self.width + 2
         height = self.height + 2
 
         if x + width > right:
-            x = max(left, x - width)
+            x = flip_x if flip_x is not None else x - width
+        x = max(left, min(x, right - width))
+
         if y + height > bottom:
-            y = max(top, y - height)
+            y = bottom - height if slide_y else y - height
+        y = max(top, y)
 
         self.window.geometry(f"{width}x{height}+{int(x)}+{int(y)}")
         self.window.deiconify()

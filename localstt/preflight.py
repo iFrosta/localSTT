@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from . import hotkeys
-from .config import APPDATA_DIR, AppConfig
+from .config import APPDATA_DIR, INSTALL_DIR, AppConfig
 
 PREFLIGHT_PATH = APPDATA_DIR / "preflight.json"
 
@@ -353,12 +353,24 @@ def check_python() -> Check:
             "Python 3.10 or newer is required; 3.12 is what the project is built against.",
         )
     in_venv = sys.prefix != getattr(sys, "base_prefix", sys.prefix)
-    if not in_venv:
+    # The release archive ships a Python inside the install folder with the packages
+    # already in it. There is no virtualenv and there does not need to be one: what the
+    # warning is really about is running an interpreter that cannot see the CUDA wheels.
+    bundled = _is_inside(Path(sys.prefix), INSTALL_DIR)
+    if not in_venv and not bundled:
         return Check(
             "python", "Python", WARN, f"Python {version}, not running from a virtualenv",
             "Start LocalSTT through .venv\\Scripts\\python.exe so it sees the CUDA wheels.",
         )
     return Check("python", "Python", OK, f"Python {version} in {sys.prefix}")
+
+
+def _is_inside(path: Path, parent: Path) -> bool:
+    try:
+        path.resolve().relative_to(parent.resolve())
+        return True
+    except (OSError, ValueError):
+        return False
 
 
 def check_packages() -> Check:

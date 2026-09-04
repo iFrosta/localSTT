@@ -29,6 +29,7 @@ from .config import (
     CONFIG_PATH,
     HISTORY_PATH,
     AppConfig,
+    cleanup_prompt_path,
     commands_path,
     editable_copy,
     save_config,
@@ -678,8 +679,24 @@ class SettingsWindow:
         user navigated away and back.
         """
         px = self.theme.px
+        colors = self.theme.colors
+
+        prompt_card = Card(self.content, self.theme)
+        prompt_card.pack_card(pady=(px(8), px(6)))
+        prompt_row = SettingRow(
+            prompt_card, self.theme, "Cleanup instructions",
+            "What the model is told to do with the transcript. Edit it to change the "
+            "result -- ask for a different tone, another language, a summary. Takes "
+            "effect on the next dictation.",
+        )
+        prompt_row.pack(fill="x")
+        Button(
+            prompt_row.control_area, self.theme, "Edit prompt",
+            self._edit_cleanup_prompt, background=colors.card,
+        ).pack()
+
         card = Card(self.content, self.theme)
-        card.pack_card(pady=(px(8), px(6)))
+        card.pack_card(pady=(0, px(6)))
         row = SettingRow(card, self.theme, "What fits on this GPU", "Asking Ollama...")
         row.pack(fill="x")
 
@@ -724,6 +741,12 @@ class SettingsWindow:
                     primary=True, background=colors.card,
                 ).pack()
         card.refresh()
+
+    def _edit_cleanup_prompt(self) -> None:
+        """Opens the prompt in whatever edits .txt, on a copy the app may write to."""
+        path = editable_copy("cleanup-prompt.txt")
+        _open_path(path)
+        self.status.configure(text=f"editing {path}")
 
     def _use_cleanup_model(self, name: str) -> None:
         self.config.ollama_model = name

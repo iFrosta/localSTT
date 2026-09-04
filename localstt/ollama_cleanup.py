@@ -7,10 +7,10 @@ from typing import Any
 import requests
 
 from . import performance
-from .config import AppConfig
+from .config import AppConfig, cleanup_prompt_path
 
 
-POLISH_PROMPT = """Ты редактор русской и английской диктовки.
+DEFAULT_POLISH_PROMPT = """Ты редактор русской и английской диктовки.
 Перепиши распознанный устный текст как нормальное письменное сообщение.
 Сохраняй смысл, порядок мыслей и язык исходного фрагмента.
 Удаляй слова-паразиты и заполнители: ну, короче, это, типа, как его, в общем, получается, basically, like, um, uh.
@@ -27,6 +27,25 @@ POLISH_PROMPT = """Ты редактор русской и английской 
 Пример:
 Вход: um like I want to test NVIDIA GeForce RTX with local whisper and basically paste the result
 Выход: I want to test NVIDIA GeForce RTX with local Whisper and paste the result."""
+
+
+def load_prompt(logger: logging.Logger) -> str:
+    """The instructions the cleanup model is given, from cleanup-prompt.txt.
+
+    Read on every cleanup rather than cached, so editing the file takes effect on the
+    next dictation instead of the next restart -- the point of a prompt you can edit is
+    trying a wording and hearing the result straight away.
+    """
+    path = cleanup_prompt_path()
+    try:
+        text = path.read_text(encoding="utf-8-sig").strip()
+    except OSError as exc:
+        logger.warning("cleanup prompt unreadable (%s), using the built-in one: %s", path, exc)
+        return DEFAULT_POLISH_PROMPT
+    if not text:
+        logger.warning("cleanup prompt at %s is empty, using the built-in one", path)
+        return DEFAULT_POLISH_PROMPT
+    return text
 
 
 def list_ollama_models(config: AppConfig) -> list[dict[str, Any]]:
@@ -96,7 +115,7 @@ def polish_text(text: str, config: AppConfig, logger: logging.Logger) -> str:
         "model": model,
         "stream": False,
         "messages": [
-            {"role": "system", "content": POLISH_PROMPT},
+            {"role": "system", "content": load_prompt(logger)},
             {"role": "user", "content": text},
         ],
         "options": {

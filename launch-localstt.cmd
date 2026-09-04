@@ -5,7 +5,9 @@ rem %~dp0 is this file's folder, with a trailing backslash that has to come off.
 set "APP_DIR=%~dp0"
 if "%APP_DIR:~-1%"=="\" set "APP_DIR=%APP_DIR:~0,-1%"
 
+rem What install.ps1 builds, then what the release archive ships, then the system one.
 set "PYTHON=%APP_DIR%\.venv\Scripts\python.exe"
+if not exist "%PYTHON%" set "PYTHON=%APP_DIR%\python\python.exe"
 if not exist "%PYTHON%" set "PYTHON=python.exe"
 
 set "LOG_DIR=%APPDATA%\LocalSTT\logs"

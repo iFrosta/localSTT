@@ -40,6 +40,10 @@ def dictionary_path() -> Path:
     return _user_or_bundled("dictionary.json")
 
 
+def cleanup_prompt_path() -> Path:
+    return _user_or_bundled("cleanup-prompt.txt")
+
+
 def editable_copy(name: str) -> Path:
     """Where an edit to one of those files should go.
 

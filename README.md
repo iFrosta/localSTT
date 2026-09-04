@@ -147,6 +147,16 @@ folder**:
 .\uninstall.ps1 -AppData  # also delete settings, history and logs
 ```
 
+### Or download the archive
+
+Releases carry a `LocalSTT-<version>-win64.zip` with a Python and every dependency
+already inside it. Unzip it anywhere and run `start-localstt.vbs` — no Python to
+install, no `pip`, no virtual environment. It is around 1.5 GB, because the cuBLAS and
+cuDNN runtimes alone are 1.3 GB of that.
+
+Use the archive if you just want the thing to work; clone the repository if you want to
+follow changes with `git pull`.
+
 ### Start it
 
 ```powershell
@@ -250,11 +260,18 @@ the word is a Latin product name. `dictionary.json` addresses both:
 ```
 
 - `terms` are given to the model as context, so it is likelier to spell them correctly.
-- `replacements` are applied to the transcript afterwards, longest phrase first.
+  This is conditioning, not learning: Whisper's weights never change, and it remembers
+  nothing between dictations. Whisper reads about 220 tokens of prompt and silently
+  drops the rest, so a term list that keeps growing quietly stops working — the log says
+  so when you cross the line.
+- `replacements` are applied to the transcript afterwards, longest phrase first. This is
+  the reliable half. If a word comes out wrong every time, fix it here rather than
+  hoping a longer term list will help.
 
-The shipped file is a starting point — replace it with your own vocabulary. An edited
-copy at `%APPDATA%\LocalSTT\dictionary.json` wins over the one in the folder, so
-`git pull` cannot overwrite it.
+The file is re-read whenever it changes, so a new word takes effect on the **next
+dictation** — no restart. The shipped one is a starting point; replace it with your own
+vocabulary. An edited copy at `%APPDATA%\LocalSTT\dictionary.json` wins over the one in
+the folder, so `git pull` cannot overwrite it.
 
 ---
 
@@ -285,6 +302,22 @@ To pick one yourself, adding `-Pull` if it still has to be downloaded:
 
 `Settings → AI cleanup` shows the same recommendation with a download button. Without
 Ollama running, plain dictation is unaffected — only the cleanup hotkey needs it.
+
+### Changing what cleanup does
+
+The instructions the model is given live in `cleanup-prompt.txt`, and
+`Settings → AI cleanup → Edit prompt` opens it. Rewrite it and the next dictation uses
+the new wording — no restart. Ask for a different tone, translation into another
+language, bullet points, a summary; the transcript is the user message and this file is
+the system one.
+
+Each dictation is a single stateless request to Ollama's `/api/chat`: one system message
+holding this prompt, one user message holding the transcript. There is no conversation
+and nothing is remembered between dictations, so the prompt is the only thing steering
+the result.
+
+An edited copy at `%APPDATA%\LocalSTT\cleanup-prompt.txt` wins over the one in the
+folder. Empty the file to fall back to the built-in prompt.
 
 ---
 
@@ -440,7 +473,7 @@ Everything the app writes lives in `%APPDATA%\LocalSTT`, never in the install fo
 | `performance.json` | Timings for the last dictation |
 | `preflight.json` | The last self-test result |
 | `app-index.json`, `app-aliases.json` | The launcher's index and your name overrides |
-| `commands.json`, `dictionary.json` | Optional. Override the copies in the install folder |
+| `commands.json`, `dictionary.json`, `cleanup-prompt.txt` | Optional. Override the copies in the install folder |
 
 Models are downloaded by `huggingface_hub` into `%USERPROFILE%\.cache\huggingface`, which
 other tools share — deleting the install folder does not remove them.

@@ -14,13 +14,20 @@ function Get-LocalSttPython {
     param([switch]$Windowed)
 
     $name = if ($Windowed) { "pythonw.exe" } else { "python.exe" }
+
+    # What install.ps1 builds.
     $venv = Join-Path $script:LocalSttRoot ".venv\Scripts\$name"
     if (Test-Path $venv) { return $venv }
+
+    # What the release archive ships: a Python inside the folder with the packages
+    # already in it, so there is nothing to install and no venv to create.
+    $bundled = Join-Path $script:LocalSttRoot "python\$name"
+    if (Test-Path $bundled) { return $bundled }
 
     $onPath = Get-Command $name -ErrorAction SilentlyContinue
     if ($onPath) { return $onPath.Source }
 
-    throw "No Python found. Expected $venv -- run install.ps1 first."
+    throw "No Python found. Expected $venv or $bundled -- run install.ps1 first."
 }
 
 function Get-LocalSttPort {

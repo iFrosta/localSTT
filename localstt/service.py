@@ -61,6 +61,25 @@ class STTService:
         self.logger.info("GPU: %s", self.gpu_name)
         self.backend.load()
 
+    def _refresh_dictionary(self) -> None:
+        """Re-read dictionary.json when it changes, so an edit needs no restart."""
+        if not self.dictionary.is_stale():
+            return
+        self.dictionary = DevelopmentDictionary.load()
+        self.backend.initial_prompt = self.dictionary.initial_prompt()
+        self.logger.info(
+            "dictionary reloaded: %s terms, %s replacements",
+            len(self.dictionary.terms),
+            len(self.dictionary.replacements),
+        )
+        overflow = self.dictionary.prompt_overflow()
+        if overflow:
+            self.logger.warning(
+                "the term list is %s characters past what Whisper reads; the last terms "
+                "are ignored. Move the rarely-spoken ones to replacements instead.",
+                overflow,
+            )
+
     def transcribe(
         self,
         audio: str | Path | Any,
@@ -71,6 +90,7 @@ class STTService:
         record: bool = True,
     ) -> TranscriptionResult:
         with self.lock:
+            self._refresh_dictionary()
             result = self.backend.transcribe(audio, language=language, beam_size=beam_size)
         result.text = self.dictionary.apply(result.text)
         if record:

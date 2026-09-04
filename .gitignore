@@ -19,6 +19,10 @@ env/
 downloads/
 diagnostics/
 
+# Where build-release.ps1 puts the archives. Gigabytes; they belong on a release, not
+# in git.
+dist/
+
 # Local app state lives in %APPDATA%\LocalSTT, but keep backups out too
 *.log
 *.bak
