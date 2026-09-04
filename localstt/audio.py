@@ -23,6 +23,15 @@ def list_microphones() -> list[dict]:
     return result
 
 
+def default_microphone_index() -> int | None:
+    """The device Windows hands us when config.microphone is None."""
+    try:
+        index = sd.default.device[0]
+    except Exception:
+        return None
+    return index if isinstance(index, int) and index >= 0 else None
+
+
 class AudioRecorder:
     def __init__(
         self,

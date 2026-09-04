@@ -247,6 +247,50 @@ def _port_is_free(host: str, port: int) -> bool:
     return True
 
 
+def _listening_connections(proc) -> list:
+    # psutil 6 renamed Process.connections() to net_connections().
+    query = getattr(proc, "net_connections", None) or proc.connections
+    return query(kind="inet")
+
+
+def _port_holder(port: int):
+    """The process listening on the port, or None when Windows will not say."""
+    try:
+        import psutil
+    except ImportError:
+        return None
+
+    try:
+        own = psutil.Process()
+        for conn in _listening_connections(own):
+            if conn.laddr and conn.laddr.port == port:
+                return own
+    except Exception:
+        pass
+
+    # Only reached for a port held by someone else; this call needs privileges our own
+    # process never does, so it is the fallback rather than the first question.
+    try:
+        for conn in psutil.net_connections(kind="inet"):
+            if conn.laddr and conn.laddr.port == port and conn.pid:
+                return psutil.Process(conn.pid)
+    except Exception:
+        return None
+    return None
+
+
+def _is_localstt(proc) -> bool:
+    if proc.pid == os.getpid():
+        return True
+    try:
+        # The interpreter path is skipped on purpose: every stray script started from
+        # C:\Apps\LocalSTT would otherwise look like the app itself.
+        args = [arg.lower().replace("\\", "/") for arg in proc.cmdline()[1:]]
+    except Exception:
+        return False
+    return any(arg == "localstt.main" or arg.endswith("localstt/main.py") for arg in args)
+
+
 # --------------------------------------------------------------------------- checks
 
 
@@ -442,10 +486,28 @@ def check_microphone(config: AppConfig) -> Check:
 
 def check_api_port(config: AppConfig) -> Check:
     title = "API port"
+    address = f"{config.api_host}:{config.api_port}"
     if _port_is_free(config.api_host, config.api_port):
-        return Check("api_port", title, OK, f"{config.api_host}:{config.api_port} is free")
+        return Check("api_port", title, OK, f"{address} is free")
+
+    # The self-test also runs from the settings window of a LocalSTT that is already
+    # serving on this port, and a warning about ourselves is noise, not a finding.
+    holder = _port_holder(config.api_port)
+    if holder is not None and _is_localstt(holder):
+        who = "this LocalSTT" if holder.pid == os.getpid() else f"a running LocalSTT (PID {holder.pid})"
+        return Check("api_port", title, OK, f"{address} is served by {who}")
+
+    if holder is not None:
+        try:
+            name = holder.name()
+        except Exception:
+            name = "another process"
+        return Check(
+            "api_port", title, WARN, f"{address} is already in use by {name} (PID {holder.pid})",
+            "Close that process, or change api_port in the settings.",
+        )
     return Check(
-        "api_port", title, WARN, f"{config.api_host}:{config.api_port} is already in use",
+        "api_port", title, WARN, f"{address} is already in use",
         "Another LocalSTT is probably running. Close it, or change api_port in the settings.",
     )
 

@@ -14,6 +14,7 @@ from tkinter import font as tkfont
 from typing import Callable
 
 from . import winui
+from .window_focus import get_foreground_window, set_foreground_window
 
 # Segoe Fluent Icons code points, with the Windows 10 icon font as the fallback.
 ICON_FONT = "Segoe Fluent Icons"
@@ -39,6 +40,11 @@ class MenuItem:
 
 def separator() -> MenuItem:
     return MenuItem(separator=True)
+
+
+# The menu the tray icon currently shows, so a second right-click replaces it instead of
+# stacking another window on top.
+_visible: "Win11Menu | None" = None
 
 
 class Win11Menu:
@@ -255,10 +261,64 @@ class Win11Menu:
             action()
 
     def _on_focus_out(self, event) -> None:
-        # Moving into a submenu takes focus with it; that must not close the parent.
-        if self.child is not None:
+        # A submenu opening can carry focus with it, which Tk reports as the parent
+        # losing focus. Only focus leaving the whole tree should dismiss the menu, and
+        # that is only knowable once Tk has settled.
+        try:
+            self.window.after(50, self._dismiss_unless_focused)
+        except tk.TclError:
+            pass
+
+    def _dismiss_unless_focused(self) -> None:
+        root = self._root()
+        if root._closed:
             return
-        self.close_all()
+        try:
+            focused = root.window.focus_displayof()
+        except (tk.TclError, KeyError):
+            focused = None
+        if focused is not None and root._holds(focused.winfo_toplevel()):
+            return
+        root.close()
+
+    def _watch_foreground(self) -> None:
+        """Tk's focus events do not fire reliably for a borderless popup, so ask Windows.
+
+        This is what dismisses the menu on a click into another application, the way
+        every other context menu on the desktop behaves.
+        """
+        if self._closed:
+            return
+        active = get_foreground_window()
+        if active is not None and not self._holds_hwnd(active):
+            self.close()
+            return
+        try:
+            self.window.after(150, self._watch_foreground)
+        except tk.TclError:
+            pass
+
+    def _root(self) -> "Win11Menu":
+        node = self
+        while node.parent is not None:
+            node = node.parent
+        return node
+
+    def _holds(self, window) -> bool:
+        node = self
+        while node is not None:
+            if node.window is window:
+                return True
+            node = node.child
+        return False
+
+    def _holds_hwnd(self, handle: int) -> bool:
+        node = self
+        while node is not None:
+            if winui.hwnd_of(node.window) == handle:
+                return True
+            node = node.child
+        return False
 
     # ------------------------------------------------------------------ showing
 
@@ -292,12 +352,21 @@ class Win11Menu:
         winui.round_region(handle, width, height, self.radius)
 
         if take_focus:
+            # Without the foreground, the popup never receives the focus change that
+            # tells it the user clicked elsewhere, and it stays on screen for good.
+            set_foreground_window(handle)
             self.window.focus_force()
+            if get_foreground_window() == handle:
+                self._watch_foreground()
 
     def close(self) -> None:
+        global _visible
+
         if self._closed:
             return
         self._closed = True
+        if _visible is self:
+            _visible = None
         if self.child is not None:
             self.child.close()
             self.child = None
@@ -307,10 +376,7 @@ class Win11Menu:
             pass
 
     def close_all(self) -> None:
-        root = self
-        while root.parent is not None:
-            root = root.parent
-        root.close()
+        self._root().close()
 
 
 def popup(items: list[MenuItem]) -> None:
@@ -318,7 +384,12 @@ def popup(items: list[MenuItem]) -> None:
     ui = winui.UiThread.instance()
 
     def build() -> None:
+        global _visible
+
+        if _visible is not None:
+            _visible.close()
         menu = Win11Menu(items)
+        _visible = menu
         x, y = winui.cursor_position()
         menu.show_at(x, y)
 

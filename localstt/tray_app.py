@@ -16,7 +16,7 @@ from PIL import Image
 from pynput import keyboard
 
 from .api import create_app
-from .audio import AudioRecorder, list_microphones
+from .audio import AudioRecorder, default_microphone_index, list_microphones
 from .command_runner import (
     COMMAND_HISTORY_PATH,
     CommandOutcome,
@@ -54,6 +54,11 @@ COLORS = {
 
 # Set while the hotkey chord is still being typed and the mode is not decided yet.
 MODE_PENDING = "pending"
+
+
+def _one_line(text: str) -> str:
+    """Windows device names carry newlines (Bluetooth headsets especially)."""
+    return " ".join(str(text).split())
 
 
 
@@ -598,16 +603,37 @@ class LocalSTTTrayApp:
         ]
 
     def _microphone_items(self) -> list[MenuItem]:
+        mics = list_microphones()
+        if not mics:
+            return [MenuItem("No microphones found", enabled=False)]
+
+        # config.microphone stays None until a device is picked by hand, and that left
+        # every row unmarked even though a microphone was in use all along.
+        default_index = default_microphone_index()
+        default_name = next((m["name"] for m in mics if m["index"] == default_index), None)
+        label = "Windows default"
+        if default_name:
+            label += f": {_one_line(default_name)}"
+
         items = [
             MenuItem(
-                f"{mic['index']}: {mic['name']}",
+                label,
+                (lambda: self._set_microphone(None)),
+                checked=self.config.microphone is None,
+                radio=True,
+            ),
+            separator(),
+        ]
+        items.extend(
+            MenuItem(
+                f"{mic['index']}: {_one_line(mic['name'])}",
                 (lambda index=mic["index"]: self._set_microphone(index)),
                 checked=self.config.microphone == mic["index"],
                 radio=True,
             )
-            for mic in list_microphones()[:20]
-        ]
-        return items or [MenuItem("No microphones found", enabled=False)]
+            for mic in mics[:20]
+        )
+        return items
 
     def _model_items(self) -> list[MenuItem]:
         return [
@@ -668,9 +694,13 @@ class LocalSTTTrayApp:
         self.service.logger.info("command auto-stop set to %s", state)
         self._notify("LocalSTT commands", f"Auto-stop: {state}")
 
-    def _set_microphone(self, index: int) -> None:
+    def _set_microphone(self, index: int | None) -> None:
         self.config.microphone = index
         save_config(self.config)
+        chosen = next((m for m in list_microphones() if m["index"] == index), None)
+        name = _one_line(chosen["name"]) if chosen else "Windows default"
+        self.service.logger.info("microphone set to %s", name)
+        self._notify("LocalSTT microphone", name)
 
     def _set_language(self, language: str) -> None:
         self.config.language = language
