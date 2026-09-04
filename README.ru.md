@@ -81,8 +81,8 @@
 ## Установка
 
 ```powershell
-git clone https://github.com/<you>/LocalSTT.git
-cd LocalSTT
+git clone https://github.com/iFrosta/localSTT.git
+cd localSTT
 .\install.ps1
 ```
 

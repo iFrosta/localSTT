@@ -80,8 +80,8 @@ Cleanup runs an Ollama model on the same card, so it has to fit in what is left 
 ## Install
 
 ```powershell
-git clone https://github.com/<you>/LocalSTT.git
-cd LocalSTT
+git clone https://github.com/iFrosta/localSTT.git
+cd localSTT
 .\install.ps1
 ```
 
