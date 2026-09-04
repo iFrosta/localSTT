@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from .config import DICTIONARY_PATH
+from .config import dictionary_path
 
 
 @dataclass
@@ -14,7 +14,8 @@ class DevelopmentDictionary:
     replacements: dict[str, str]
 
     @classmethod
-    def load(cls, path: Path = DICTIONARY_PATH) -> "DevelopmentDictionary":
+    def load(cls, path: Path | None = None) -> "DevelopmentDictionary":
+        path = path or dictionary_path()
         if not path.exists():
             return cls(terms=[], replacements={})
         data = json.loads(path.read_text(encoding="utf-8-sig"))

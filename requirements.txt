@@ -1,16 +1,28 @@
+# Everything LocalSTT needs to run. Install into a virtual environment:
+#   .venv\Scripts\python.exe -m pip install -r requirements.txt
+#
+# Versions are left open on purpose; the set tested together is in
+# requirements-lock.txt, which install.ps1 uses by default.
+
+# Speech recognition
 faster-whisper
 ctranslate2
+
+# Audio capture
 sounddevice
 numpy
+
+# Global hotkeys, clipboard, tray icon and its rendering
 pynput
 pyperclip
 pystray
 Pillow
+
+# The OpenAI-compatible HTTP endpoint
 fastapi
 uvicorn
 python-multipart
+
+# Talking to Ollama, and the self-test's process and port checks
 requests
-pydantic
 psutil
-nvidia-cublas-cu12
-nvidia-cudnn-cu12

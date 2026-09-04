@@ -25,9 +25,9 @@ from .command_runner import (
     run_matched_command,
 )
 from .config import (
-    COMMANDS_PATH,
     CONFIG_PATH,
     HISTORY_PATH,
+    INSTALL_DIR,
     LAST_TRANSCRIPT_PATH,
     LOG_PATH,
     AppConfig,
@@ -831,7 +831,7 @@ class LocalSTTTrayApp:
                 self._notify("LocalSTT", f"Could not open {path}")
 
     def _restart(self) -> None:
-        subprocess.Popen([sys.executable, "-m", "localstt.main"], cwd="C:/Apps/LocalSTT")
+        subprocess.Popen([sys.executable, "-m", "localstt.main"], cwd=str(INSTALL_DIR))
         self._exit()
 
     def _exit(self) -> None:

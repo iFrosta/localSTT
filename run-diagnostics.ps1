@@ -1,5 +1,6 @@
+# Prints what CUDA, cuDNN and CTranslate2 see on this machine.
 $ErrorActionPreference = "Stop"
-$root = "C:\Apps\LocalSTT"
-$python = "C:\Apps\LocalSTT\.venv\Scripts\python.exe"
-Set-Location $root
-& $python diagnostics.py
+. (Join-Path $PSScriptRoot "_env.ps1")
+
+Set-Location (Get-LocalSttRoot)
+& (Get-LocalSttPython) diagnostics.py

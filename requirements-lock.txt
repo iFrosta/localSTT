@@ -1,0 +1,16 @@
+# The exact versions this release was tested with, on Windows 11 + Python 3.12 with an
+# NVIDIA GPU. install.ps1 uses this file unless it is run with -Latest.
+faster-whisper==1.2.1
+ctranslate2==4.8.2
+sounddevice==0.5.6
+numpy==2.5.2
+pynput==1.8.2
+pyperclip==1.11.0
+pystray==0.19.5
+Pillow==12.3.0
+fastapi==0.141.1
+uvicorn==0.52.4
+python-multipart==0.0.32
+requests==2.34.2
+pydantic==2.13.5
+psutil==7.2.2

@@ -1,11 +1,19 @@
+# Sends one audio file to the running app through its OpenAI-compatible endpoint.
 param(
     [Parameter(Mandatory=$true)]
     [string]$File,
-    [string]$ResponseFormat = "json"
+    [string]$Model = "large-v3-turbo",
+    [string]$Language = "ru",
+    [string]$ResponseFormat = "json",
+    [int]$Port = 0
 )
 $ErrorActionPreference = "Stop"
-curl.exe -X POST "http://127.0.0.1:7777/v1/audio/transcriptions" `
+. (Join-Path $PSScriptRoot "_env.ps1")
+
+if ($Port -le 0) { $Port = Get-LocalSttPort }
+
+curl.exe -X POST "http://127.0.0.1:$Port/v1/audio/transcriptions" `
   -F "file=@$File" `
-  -F "model=large-v3-turbo" `
-  -F "language=ru" `
+  -F "model=$Model" `
+  -F "language=$Language" `
   -F "response_format=$ResponseFormat"

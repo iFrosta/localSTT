@@ -14,13 +14,10 @@ Python312/
 venv/
 env/
 
-# Downloaded installers and generated logs
+# Downloaded installers, and everything the diagnostics scripts write. These are
+# records of one machine, so none of them belong in the repository.
 downloads/
-diagnostics/python-install*.log
-diagnostics/*-run.txt
-diagnostics/benchmark-results.csv
-diagnostics/*.txt
-!diagnostics/package-versions.txt
+diagnostics/
 
 # Local app state lives in %APPDATA%\LocalSTT, but keep backups out too
 *.log
@@ -29,6 +26,9 @@ diagnostics/*.txt
 *.orig
 history.jsonl
 config.local.json
+
+# Screenshots are generated; only the ones committed under docs/ are kept.
+screenshots/
 
 # Audio artifacts
 *.wav

@@ -1,0 +1,10 @@
+# Optional: NVIDIA GPU acceleration.
+#
+# CTranslate2 needs cuBLAS 12 and cuDNN 9 next to it. These wheels ship those DLLs, so
+# nothing has to be installed system-wide and no CUDA Toolkit is required -- only a
+# recent NVIDIA driver.
+#
+# Skip this file to run on the CPU: set "device": "cpu" and "compute_type": "int8"
+# in config.json. Expect roughly real-time speed instead of many times faster.
+nvidia-cublas-cu12
+nvidia-cudnn-cu12

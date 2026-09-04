@@ -325,7 +325,7 @@ def _is_localstt(proc) -> bool:
         return True
     try:
         # The interpreter path is skipped on purpose: every stray script started from
-        # C:\Apps\LocalSTT would otherwise look like the app itself.
+        # the install folder would otherwise look like the app itself.
         args = [arg.lower().replace("\\", "/") for arg in proc.cmdline()[1:]]
     except Exception:
         return False

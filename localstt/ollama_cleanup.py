@@ -25,8 +25,8 @@ POLISH_PROMPT = """Ты редактор русской и английской 
 Выход: Это проверка вместе с Whisper и моделью, которая должна убрать слова-паразиты.
 
 Пример:
-Вход: um like I want to test NVIDIA RTX 5090 with local whisper and basically paste the result
-Выход: I want to test NVIDIA RTX 5090 with local Whisper and paste the result."""
+Вход: um like I want to test NVIDIA GeForce RTX with local whisper and basically paste the result
+Выход: I want to test NVIDIA GeForce RTX with local Whisper and paste the result."""
 
 
 def list_ollama_models(config: AppConfig) -> list[dict[str, Any]]:

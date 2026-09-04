@@ -7,12 +7,9 @@ param(
     [switch]$Pull
 )
 $ErrorActionPreference = "Stop"
-$python = "C:\Apps\LocalSTT\.venv\Scripts\python.exe"
-if (-not (Test-Path $python)) {
-    throw "LocalSTT venv not found: $python"
-}
-Set-Location "C:\Apps\LocalSTT"
+. (Join-Path $PSScriptRoot "_env.ps1")
 
+Set-Location (Get-LocalSttRoot)
 $arguments = @("-m", "localstt.cleanup_model", "--model", $Model, "--apply", "--timeout", $TimeoutSeconds)
 if ($Pull) { $arguments += "--pull" }
-& $python @arguments
+& (Get-LocalSttPython) @arguments

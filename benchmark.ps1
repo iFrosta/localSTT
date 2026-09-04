@@ -1,10 +1,16 @@
+# Times the model on real recordings and appends a row per file to a CSV.
 param(
     [Parameter(Mandatory=$true, ValueFromRemainingArguments=$true)]
     [string[]]$WavFiles,
-    [string]$Output = "C:\Apps\LocalSTT\diagnostics\benchmark-results.csv"
+    [string]$Output
 )
 $ErrorActionPreference = "Stop"
-$root = "C:\Apps\LocalSTT"
-$python = "C:\Apps\LocalSTT\.venv\Scripts\python.exe"
-Set-Location $root
-& $python benchmark.py @WavFiles --output $Output
+. (Join-Path $PSScriptRoot "_env.ps1")
+
+if (-not $Output) {
+    $Output = Join-Path (Get-LocalSttRoot) "diagnostics\benchmark-results.csv"
+}
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Output) | Out-Null
+
+Set-Location (Get-LocalSttRoot)
+& (Get-LocalSttPython) benchmark.py @WavFiles --output $Output

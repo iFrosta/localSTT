@@ -25,7 +25,14 @@ from . import (
     winui,
 )
 from .command_runner import clear_availability_cache, command_statuses
-from .config import COMMANDS_PATH, CONFIG_PATH, HISTORY_PATH, AppConfig, save_config
+from .config import (
+    CONFIG_PATH,
+    HISTORY_PATH,
+    AppConfig,
+    commands_path,
+    editable_copy,
+    save_config,
+)
 from .widgets import (
     Button,
     Card,
@@ -589,7 +596,7 @@ class SettingsWindow:
         tools = tk.Frame(self.content, bg=colors.window)
         tools.pack(fill="x", pady=(0, px(8)))
         Button(tools, self.theme, "Open commands.json",
-               lambda: _open_path(COMMANDS_PATH), background=colors.window).pack(side="left")
+               lambda: _open_path(commands_path()), background=colors.window).pack(side="left")
         Button(tools, self.theme, "Edit app names",
                lambda: _open_path(app_index.APP_ALIASES_PATH),
                background=colors.window).pack(side="left", padx=px(8))
@@ -630,15 +637,18 @@ class SettingsWindow:
         self._show_section("commands")
 
     def _set_command_enabled(self, name: str, enabled: bool) -> None:
+        # Under an all-users install the shipped file is read-only, and the edit lands
+        # on a copy in %APPDATA% that every later read prefers.
+        path = editable_copy("commands.json")
         try:
-            data = json.loads(COMMANDS_PATH.read_text(encoding="utf-8-sig"))
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
             for command in data.get("commands", []):
                 if command.get("name") == name:
                     if enabled:
                         command.pop("enabled", None)
                     else:
                         command["enabled"] = False
-            COMMANDS_PATH.write_text(
+            path.write_text(
                 json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
             )
             clear_availability_cache()

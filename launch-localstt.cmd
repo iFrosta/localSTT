@@ -1,7 +1,13 @@
 @echo off
 setlocal
-set "APP_DIR=C:\Apps\LocalSTT"
-set "PYTHON=C:\Apps\LocalSTT\.venv\Scripts\python.exe"
+
+rem %~dp0 is this file's folder, with a trailing backslash that has to come off.
+set "APP_DIR=%~dp0"
+if "%APP_DIR:~-1%"=="\" set "APP_DIR=%APP_DIR:~0,-1%"
+
+set "PYTHON=%APP_DIR%\.venv\Scripts\python.exe"
+if not exist "%PYTHON%" set "PYTHON=python.exe"
+
 set "LOG_DIR=%APPDATA%\LocalSTT\logs"
 set "BOOTSTRAP_LOG=%LOG_DIR%\localstt-bootstrap.log"
 
@@ -14,11 +20,6 @@ echo PYTHON=%PYTHON%>> "%BOOTSTRAP_LOG%"
 
 cd /d "%APP_DIR%" || (
   echo failed to cd to %APP_DIR%>> "%BOOTSTRAP_LOG%"
-  exit /b 1
-)
-
-if not exist "%PYTHON%" (
-  echo python not found: %PYTHON%>> "%BOOTSTRAP_LOG%"
   exit /b 1
 )
 

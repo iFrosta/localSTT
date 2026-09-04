@@ -1,7 +1,12 @@
+# Asks the running app how it is doing.
+param([int]$Port = 0)
 $ErrorActionPreference = "Stop"
-$health = Invoke-RestMethod -Uri "http://127.0.0.1:7777/health" -TimeoutSec 5
-$metrics = Invoke-RestMethod -Uri "http://127.0.0.1:7777/metrics" -TimeoutSec 5
+. (Join-Path $PSScriptRoot "_env.ps1")
+
+if ($Port -le 0) { $Port = Get-LocalSttPort }
+$base = "http://127.0.0.1:$Port"
+
 "===== /health ====="
-$health | ConvertTo-Json -Depth 8
+(Invoke-RestMethod -Uri "$base/health" -TimeoutSec 5) | ConvertTo-Json -Depth 8
 "===== /metrics ====="
-$metrics | ConvertTo-Json -Depth 8
+(Invoke-RestMethod -Uri "$base/metrics" -TimeoutSec 5) | ConvertTo-Json -Depth 8

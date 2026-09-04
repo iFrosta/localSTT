@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from . import app_index
-from .config import APPDATA_DIR, COMMANDS_PATH, AppConfig
+from .config import APPDATA_DIR, AppConfig, commands_path
 
 
 # Handles commands of type "localstt", which act on the running app itself.
@@ -217,19 +217,20 @@ def command_status(command: dict[str, Any]) -> CommandStatus:
 def load_all_commands(logger) -> list[dict[str, Any]]:
     """Every command in commands.json, including the ones this machine cannot run."""
     global _COMMANDS_CACHE
-    if not COMMANDS_PATH.exists():
-        logger.warning("commands file not found: %s", COMMANDS_PATH)
+    path = commands_path()
+    if not path.exists():
+        logger.warning("commands file not found: %s", path)
         return []
 
-    stat = COMMANDS_PATH.stat()
+    stat = path.stat()
     key = (stat.st_mtime_ns, stat.st_size)
     if _COMMANDS_CACHE is not None and _COMMANDS_CACHE[0] == key:
         return _COMMANDS_CACHE[1]
 
     try:
-        data = json.loads(COMMANDS_PATH.read_text(encoding="utf-8-sig"))
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError) as exc:
-        logger.error("commands file is unreadable (%s): %s", COMMANDS_PATH, exc)
+        logger.error("commands file is unreadable (%s): %s", path, exc)
         return []
 
     commands = list(data.get("commands", []))

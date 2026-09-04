@@ -1,5 +1,6 @@
+# Runs the tray app in this console, so log lines and tracebacks are visible.
 $ErrorActionPreference = "Stop"
-$root = "C:\Apps\LocalSTT"
-$python = "C:\Apps\LocalSTT\.venv\Scripts\python.exe"
-Set-Location $root
-& $python -m localstt.main
+. (Join-Path $PSScriptRoot "_env.ps1")
+
+Set-Location (Get-LocalSttRoot)
+& (Get-LocalSttPython) -m localstt.main

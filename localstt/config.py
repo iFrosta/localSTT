@@ -14,16 +14,66 @@ LOG_PATH = LOG_DIR / "localstt.log"
 HISTORY_PATH = APPDATA_DIR / "history.jsonl"
 LAST_TRANSCRIPT_PATH = APPDATA_DIR / "last-transcript.txt"
 PERFORMANCE_PATH = APPDATA_DIR / "performance.json"
-INSTALL_DIR = Path("C:/Apps/LocalSTT")
-DICTIONARY_PATH = INSTALL_DIR / "dictionary.json"
-COMMANDS_PATH = INSTALL_DIR / "commands.json"
+
+# Wherever the checkout happens to be: the app is portable, so nothing may assume the
+# folder it was installed into. `localstt/config.py` -> the folder that holds `localstt`.
+INSTALL_DIR = Path(__file__).resolve().parent.parent
+
+
+def _user_or_bundled(name: str) -> Path:
+    """The copy in %APPDATA%\\LocalSTT if there is one, else the one shipped with the app.
+
+    Both files are meant to be edited, and they live in the install folder, where a
+    `git pull` would overwrite them -- and where, under Program Files, they cannot be
+    written at all. A copy next to config.json solves both.
+    """
+    override = APPDATA_DIR / name
+    return override if override.exists() else INSTALL_DIR / name
+
+
+def commands_path() -> Path:
+    """Resolved on every call: an edit can create the %APPDATA% copy mid-session."""
+    return _user_or_bundled("commands.json")
+
+
+def dictionary_path() -> Path:
+    return _user_or_bundled("dictionary.json")
+
+
+def editable_copy(name: str) -> Path:
+    """Where an edit to one of those files should go.
+
+    In place when the install folder can be written -- a portable install, where keeping
+    everything in one folder is the point. When it cannot (Program Files, or anywhere
+    else installed for all users), the file is copied into %APPDATA% first and every
+    later read prefers that copy.
+    """
+    current = _user_or_bundled(name)
+    if _is_writable(current):
+        return current
+
+    APPDATA_DIR.mkdir(parents=True, exist_ok=True)
+    target = APPDATA_DIR / name
+    if not target.exists() and current.exists():
+        target.write_bytes(current.read_bytes())
+    return target
+
+
+def _is_writable(path: Path) -> bool:
+    try:
+        with path.open("r+b"):
+            return True
+    except OSError:
+        return False
 
 
 @dataclass
 class AppConfig:
     model: str = "large-v3-turbo"
     allowed_models: list[str] = field(default_factory=lambda: ["large-v3-turbo", "large-v3", "medium"])
-    language: str = "ru"
+    # Detection by default: a first run should work for whoever installed it, whatever
+    # they speak. Forcing a language is a little more accurate on short phrases.
+    language: str = "auto"
     allowed_languages: list[str] = field(default_factory=lambda: ["ru", "en", "auto"])
     device: str = "cuda"
     compute_type: str = "float16"

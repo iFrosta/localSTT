@@ -1,10 +1,16 @@
+# Starts LocalSTT with Windows, as a shortcut in this user's Startup folder.
 $ErrorActionPreference = "Stop"
-$startup = [Environment]::GetFolderPath("Startup")
-$shortcut = Join-Path $startup "LocalSTT.lnk"
+. (Join-Path $PSScriptRoot "_env.ps1")
+
+$root = Get-LocalSttRoot
+$launcher = Join-Path $root "start-localstt.vbs"
+if (-not (Test-Path $launcher)) { throw "Launcher not found: $launcher" }
+
+$shortcut = Join-Path ([Environment]::GetFolderPath("Startup")) "LocalSTT.lnk"
 $shell = New-Object -ComObject WScript.Shell
 $lnk = $shell.CreateShortcut($shortcut)
-$lnk.TargetPath = "C:\Apps\LocalSTT\start-localstt.vbs"
-$lnk.WorkingDirectory = "C:\Apps\LocalSTT"
-$lnk.IconLocation = "C:\Apps\LocalSTT\start-localstt.vbs,0"
+$lnk.TargetPath = $launcher
+$lnk.WorkingDirectory = $root
+$lnk.IconLocation = "$launcher,0"
 $lnk.Save()
 "Created per-user autostart shortcut: $shortcut"
