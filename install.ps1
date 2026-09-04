@@ -21,6 +21,10 @@
     virtual environment inside the install folder, so upgrading them means writing
     there -- which under Program Files needs an elevated console every time.
 
+.PARAMETER InstallPython
+    Install Python with winget without asking first. Without it the script offers to do
+    the same thing interactively when no suitable Python is found.
+
 .PARAMETER SkipCuda
     Do not install the cuBLAS and cuDNN wheels. Only for a machine that already has a
     matching CUDA 12 runtime on the search path -- LocalSTT will not start without one.
@@ -43,6 +47,7 @@
 [CmdletBinding()]
 param(
     [string]$InstallTo,
+    [switch]$InstallPython,
     [switch]$SkipCuda,
     [switch]$Latest,
     [switch]$Autostart,
@@ -95,10 +100,27 @@ function Find-Python {
     <#
         .SYNOPSIS
         A 64-bit CPython between 3.10 and 3.13, preferring the newest one installed.
+
+        Being on PATH is not required. A Python installed for the current user only, or
+        unpacked next to this script to keep the whole thing in one folder, is just as
+        good and neither of those puts itself on PATH.
     #>
     # Objects, not nested arrays: PowerShell flattens @($exe, @("-3.12")) into two
     # loose strings, and the argument list stops being an argument list.
     $candidates = [System.Collections.Generic.List[object]]::new()
+
+    function Add-Candidate($path, $prefix = @()) {
+        if ($path -and (Test-Path $path)) {
+            $candidates.Add([pscustomobject]@{ Exe = $path; Prefix = $prefix })
+        }
+    }
+
+    # A Python kept inside the application folder wins: it is the one someone chose to
+    # put there, and it travels with the folder.
+    foreach ($dir in @("Python312", "Python313", "Python311", "Python310", "python")) {
+        Add-Candidate (Join-Path $root "$dir\python.exe")
+    }
+
     $launcher = Get-Command "py.exe" -ErrorAction SilentlyContinue
     if ($launcher) {
         foreach ($version in @("3.12", "3.13", "3.11", "3.10")) {
@@ -108,6 +130,15 @@ function Find-Python {
     foreach ($name in @("python.exe", "python3.exe")) {
         $found = Get-Command $name -ErrorAction SilentlyContinue
         if ($found) { $candidates.Add([pscustomobject]@{ Exe = $found.Source; Prefix = @() }) }
+    }
+
+    # Where the python.org installer puts things. "Install for all users" was not ticked
+    # and "Add to PATH" was not either -- both are off by default.
+    foreach ($base in @("$env:LOCALAPPDATA\Programs\Python", $env:ProgramFiles, ${env:ProgramFiles(x86)})) {
+        if (-not $base -or -not (Test-Path $base)) { continue }
+        Get-ChildItem -Path $base -Filter "Python3*" -Directory -ErrorAction SilentlyContinue |
+            Sort-Object Name -Descending |
+            ForEach-Object { Add-Candidate (Join-Path $_.FullName "python.exe") }
     }
 
     # chr(80) is "P", written this way so no quote in the probe needs escaping.
@@ -137,13 +168,49 @@ function Find-Python {
     return $null
 }
 
+function Install-Python {
+    <#
+        .SYNOPSIS
+        Install Python 3.12 for this user with winget, and find it afterwards.
+    #>
+    $winget = Get-Command "winget.exe" -ErrorAction SilentlyContinue
+    if (-not $winget) { return $null }
+
+    Write-Note "Installing Python 3.12 with winget. This takes a minute."
+    & $winget.Source install --exact --id Python.Python.3.12 --scope user --silent `
+        --accept-package-agreements --accept-source-agreements
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "winget could not install Python (exit code $LASTEXITCODE)."
+        return $null
+    }
+
+    # A fresh install is not on this process's PATH: the environment was captured when
+    # the console started. Re-read it, and look in the install folder either way.
+    $env:PATH = [Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" +
+                [Environment]::GetEnvironmentVariable("PATH", "User")
+    return Find-Python
+}
+
 $python = Find-Python
 if (-not $python) {
+    Write-Warn "No 64-bit Python 3.10 - 3.13 on this machine."
+
+    $shouldInstall = $InstallPython
+    if (-not $shouldInstall -and [Environment]::UserInteractive) {
+        $answer = Read-Host "    Install Python 3.12 now, for this user only? [Y/n]"
+        $shouldInstall = $answer -notmatch '^(n|no)$'
+    }
+    if ($shouldInstall) { $python = Install-Python }
+}
+
+if (-not $python) {
     Write-Host ""
-    Write-Host "No suitable Python found. LocalSTT needs 64-bit Python 3.10 - 3.13." -ForegroundColor Red
-    Write-Host "Install it with either of:" -ForegroundColor Red
+    Write-Host "LocalSTT needs 64-bit Python 3.10 - 3.13. Install it with either of:" -ForegroundColor Red
     Write-Host "    winget install -e --id Python.Python.3.12" -ForegroundColor Red
     Write-Host "    https://www.python.org/downloads/windows/" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Then run this script again. It does not need Python on PATH: an install" -ForegroundColor Red
+    Write-Host "for the current user, or a Python unpacked into this folder, is found too." -ForegroundColor Red
     throw "Python not found"
 }
 Write-Ok "Python $($python.Version) at $($python.Path)"

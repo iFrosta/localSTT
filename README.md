@@ -58,7 +58,7 @@ for — the model is downloaded once and everything after that is local.
 | **GPU** | NVIDIA, compute capability 7.0 or newer (RTX 20-series, GTX 16-series, Volta and up) | **There is no CPU fallback.** LocalSTT refuses to start without a usable CUDA device, and says why. |
 | **VRAM** | 4 GB free for the default model | See the table below. On a tight card, drop the compute type to `int8_float16`. |
 | **Driver** | NVIDIA 527.41 or newer | What the CUDA 12 wheels need. No CUDA Toolkit installation is required — the wheels carry their own DLLs. |
-| **Python** | 3.10 – 3.13, 64-bit | 3.12 is what it is built and tested against. |
+| **Python** | 3.10 – 3.13, 64-bit | 3.12 is what it is built and tested against. The installer offers to install it for you if there isn't one, and finds an existing one whether or not it is on `PATH`. |
 | **Disk** | ~4 GB | ~2.5 GB of Python packages, plus the model (1.6 GB for `large-v3-turbo`). |
 | **Microphone** | Any input Windows can see | Picked in `Settings → Audio`, or left on the Windows default. |
 | **Ollama** | Optional | Only for the AI cleanup hotkey. Everything else works without it. |
@@ -87,7 +87,8 @@ cd localSTT
 
 That is the whole thing. The installer stays inside the folder it is run from:
 
-1. checks Windows, Python and the GPU,
+1. checks Windows, Python and the GPU — and offers to install Python with `winget`
+   if there is none,
 2. creates `.venv` next to itself,
 3. installs the tested dependency set (`-Latest` installs the newest instead),
 4. installs the cuBLAS and cuDNN wheels — no CUDA Toolkit needed,
@@ -97,10 +98,15 @@ That is the whole thing. The installer stays inside the folder it is run from:
 Useful switches:
 
 ```powershell
-.\install.ps1 -Autostart     # also start LocalSTT with Windows
-.\install.ps1 -Latest        # newest packages instead of the pinned set
-.\install.ps1 -SkipSelfTest  # skip the check at the end
+.\install.ps1 -Autostart      # also start LocalSTT with Windows
+.\install.ps1 -Latest         # newest packages instead of the pinned set
+.\install.ps1 -InstallPython  # install Python with winget without asking
+.\install.ps1 -SkipSelfTest   # skip the check at the end
 ```
+
+Python does not have to be on `PATH`. The installer also looks where the python.org
+installer puts a per-user install, and at a `Python312\` folder next to itself — so a
+"put everything in one folder" setup works without touching the system.
 
 If PowerShell refuses to run the script, allow scripts for this session:
 
