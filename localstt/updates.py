@@ -76,11 +76,11 @@ def check(config: AppConfig, logger: logging.Logger, *, timeout: float = 6.0) ->
     except Exception as exc:
         # Being offline is not an error worth showing anyone.
         logger.info("update check failed: %s", exc)
+        _remember_check("")
         return None
-    finally:
-        _remember_check()
 
     tag = str(data.get("tag_name") or "")
+    _remember_check(tag)
     if not is_newer(tag, __version__):
         logger.info("update check: %s is current (latest published is %s)", __version__, tag or "none")
         return None
@@ -103,6 +103,35 @@ def check_if_due(config: AppConfig, logger: logging.Logger) -> Update | None:
     return check(config, logger)
 
 
+@dataclass
+class LastCheck:
+    """What the previous check found. `latest` is "" when it could not be made."""
+
+    when: str
+    latest: str
+    current: str
+
+    @property
+    def stale(self) -> bool:
+        """Answered about a version that is no longer the one running."""
+        return bool(self.current) and self.current != __version__
+
+
+def last_check() -> LastCheck | None:
+    """The stored result, or None when nothing has been checked on this machine yet."""
+    try:
+        data = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    try:
+        when = datetime.fromtimestamp(float(data.get("checked_at", 0))).strftime("%Y-%m-%d %H:%M")
+    except (TypeError, ValueError, OSError, OverflowError):
+        return None
+    return LastCheck(when=when, latest=str(data.get("latest") or ""), current=str(data.get("current") or ""))
+
+
 def _is_due(config: AppConfig) -> bool:
     hours = max(0.0, config.update_check_interval_hours)
     if hours <= 0:
@@ -114,12 +143,22 @@ def _is_due(config: AppConfig) -> bool:
     return (time.time() - last) >= hours * 3600
 
 
-def _remember_check() -> None:
+def _remember_check(latest: str) -> None:
+    """The answer as well as the time, so the settings window can show one without asking.
+
+    `latest` is the published tag, or "" when GitHub could not be reached -- which is
+    itself worth showing rather than leaving the row looking unchecked.
+    """
     try:
         APPDATA_DIR.mkdir(parents=True, exist_ok=True)
         STATE_PATH.write_text(
             json.dumps(
-                {"checked_at": time.time(), "checked_at_iso": datetime.now(timezone.utc).isoformat()},
+                {
+                    "checked_at": time.time(),
+                    "checked_at_iso": datetime.now(timezone.utc).isoformat(),
+                    "latest": latest,
+                    "current": __version__,
+                },
                 indent=2,
             ),
             encoding="utf-8",

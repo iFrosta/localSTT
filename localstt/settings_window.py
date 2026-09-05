@@ -459,6 +459,9 @@ class SettingsWindow:
         self.controls.clear()
 
         if section.custom == "health":
+            # Which version this is, and whether it is the current one, belong with the
+            # rest of "what state is this install in".
+            self._render_version()
             self._render_health()
             return
 
@@ -681,18 +684,55 @@ class SettingsWindow:
     # ------------------------------------------------------------------ cleanup model
 
     def _render_version(self) -> None:
+        """The version card, shown on General and again beside the health report."""
         px = self.theme.px
+        self._update_button = None
         self._version_card = Card(self.content, self.theme)
         self._version_card.pack_card(pady=(px(8), px(6)))
+        last = updates.last_check()
         self._version_row = SettingRow(
             self._version_card, self.theme, f"LocalSTT {__version__}",
-            "Ask GitHub whether there is a newer release.",
+            self._version_summary(last),
         )
         self._version_row.pack(fill="x")
         Button(
             self._version_row.control_area, self.theme, "Check now",
             self._check_for_updates, background=self.theme.colors.card,
-        ).pack()
+        ).pack(side="right")
+        # Seeded from the last stored answer, so opening the page says something
+        # without a request. "Check now" asks again.
+        if last is not None and not last.stale and updates.is_newer(last.latest, __version__):
+            self._set_update_offer(last.latest.lstrip("vV"), self._releases_url())
+
+    def _version_summary(self, last) -> str:
+        if last is None or last.stale:
+            return "Ask GitHub whether there is a newer release."
+        if not last.latest:
+            return f"Asked {last.when}, but GitHub could not be reached."
+        if updates.is_newer(last.latest, __version__):
+            return f"LocalSTT {last.latest.lstrip('vV')} is available -- seen {last.when}."
+        return f"Up to date as of {last.when}."
+
+    def _releases_url(self) -> str:
+        repo = (self.config.update_repository or "").strip()
+        return f"https://github.com/{repo}/releases/latest" if repo else ""
+
+    def _set_update_offer(self, version: str, url: str) -> None:
+        """One offer button at most, however often the row is refreshed."""
+        existing = getattr(self, "_update_button", None)
+        if existing is not None:
+            try:
+                existing.destroy()
+            except tk.TclError:
+                pass
+        self._update_button = None
+        if not version or not url:
+            return
+        self._update_button = Button(
+            self._version_row.control_area, self.theme, f"Get {version}",
+            lambda: webbrowser.open(url), primary=True, background=self.theme.colors.card,
+        )
+        self._update_button.pack(side="right", padx=(0, self.theme.px(8)))
 
     def _check_for_updates(self) -> None:
         """Forced, so it answers even when today's automatic check already ran."""
@@ -712,18 +752,13 @@ class SettingsWindow:
             return
 
         if update is None:
-            self._version_row.set_description(
-                "This is the newest release, or GitHub could not be reached."
-            )
+            self._set_update_offer("", "")
+            self._version_row.set_description(self._version_summary(updates.last_check()))
         else:
             self._version_row.set_description(
                 f"{update.label} \u2014 published {update.published[:10]}"
             )
-            Button(
-                self._version_row.control_area, self.theme, f"Get {update.version}",
-                lambda url=update.url: webbrowser.open(url),
-                primary=True, background=self.theme.colors.card,
-            ).pack()
+            self._set_update_offer(update.version, update.url)
         self._version_card.refresh()
         self.status.configure(text="")
 

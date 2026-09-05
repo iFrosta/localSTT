@@ -222,7 +222,7 @@ save.
 | **History** | Off by default. On, every transcript is kept with its timestamp |
 | **Performance** | How long the last dictation and cleanup took |
 | **API** | Host and port |
-| **Health** | The full self-test, re-runnable |
+| **Health** | The full self-test, re-runnable, and the installed version with its update check |
 
 ### Languages
 
@@ -469,7 +469,9 @@ The last result is kept in `%APPDATA%\LocalSTT\preflight.json`.
 
 LocalSTT asks the GitHub releases API once a day whether a newer version has been
 published, and says so in the tray if there is one. It is one `GET`; nothing about the
-machine goes with it. `Settings → General` has the switch and a **Check now** button.
+machine goes with it. The switch is on `Settings → General`, and the version card —
+which version is installed, what the last check found, and a **Check now** button — sits
+on both `General` and `Health`.
 
 Updating is manual, and depends on how it was installed: `git pull` in a clone, or
 download the newer archive from
