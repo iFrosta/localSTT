@@ -224,6 +224,24 @@ save.
 | **API** | Host and port |
 | **Health** | The full self-test, re-runnable |
 
+### Languages
+
+`large-v3-turbo` is multilingual: one model, around a hundred languages, and the default
+`auto` setting works out which one you are speaking on every dictation. Nothing needs
+configuring for that — dictate in another language and it follows you.
+
+The dropdown itself offers `auto`, `en` and `ru`, because pinning a language is a little
+more accurate on short phrases and most people only ever use one or two. Any other code
+works — add it to `allowed_languages` in `config.json` and it appears in the list:
+
+```json
+"allowed_languages": ["auto", "en", "de", "es"]
+```
+
+Turbo is a distilled model, so on some languages it is a little behind `large-v3`. If
+yours is one of them, switch the model in `Settings → General`; the trade is about a
+gigabyte of VRAM and some speed.
+
 ---
 
 ## Delivery and the clipboard
@@ -249,13 +267,13 @@ whatever the clipboard setting says.
 
 ## Dictionary
 
-Whisper mangles technical vocabulary, and it writes Russian speech in Cyrillic even when
-the word is a Latin product name. `dictionary.json` addresses both:
+Whisper mangles technical vocabulary, and it spells product names the way they sound
+rather than the way they are written. `dictionary.json` addresses both:
 
 ```json
 {
   "terms": ["CUDA", "cuDNN", "PostgreSQL"],
-  "replacements": { "ку да": "CUDA", "постгрес": "PostgreSQL" }
+  "replacements": { "kuda": "CUDA", "postgres sequel": "PostgreSQL" }
 }
 ```
 
@@ -392,12 +410,12 @@ packages and registered app ids alike, via `Get-StartApps`. The index is cached 
 `%APPDATA%\LocalSTT\app-index.json` and rebuilt daily, or on demand from
 `Settings → Voice commands → Rebuild app index`.
 
-Because Whisper writes Russian speech in Cyrillic, spoken names of Latin-named apps are
-resolved through transliteration, fuzzy matching and an alias file at
-`%APPDATA%\LocalSTT\app-aliases.json` (`Settings → Voice commands → Edit app names`):
+Spoken names rarely match registered ones, so they are resolved through fuzzy matching,
+transliteration (for dictation languages not written in the Latin alphabet) and an alias
+file at `%APPDATA%\LocalSTT\app-aliases.json` (`Settings → Voice commands → Edit app names`):
 
 ```json
-{ "калькулятор": "Calculator", "браузер": "Google Chrome" }
+{ "chrome": "Google Chrome", "vs code": "Visual Studio Code" }
 ```
 
 Results are logged to `%APPDATA%\LocalSTT\command-history.jsonl` (tray: `Command history`).
