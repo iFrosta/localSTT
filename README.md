@@ -138,8 +138,10 @@ If you do install for all users, everything still works: settings, history and l
 already live in `%APPDATA%\LocalSTT`, and an edit to `commands.json` from the settings
 window is written to a copy there rather than failing against the read-only original.
 
-Nothing is written to the registry. The folder can be moved or renamed afterwards —
-every script finds itself. To undo it all, run the uninstaller **from the install
+One registry key is written, under `HKCU\Software\Classes\AppUserModelId`: the name
+and icon Windows puts on LocalSTT's notifications, which would otherwise be Python's.
+The uninstaller removes it. Nothing else goes near the registry, and the folder can be
+moved or renamed afterwards — every script finds itself. To undo it all, run the uninstaller **from the install
 folder**:
 
 ```powershell

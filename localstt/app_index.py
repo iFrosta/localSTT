@@ -31,33 +31,26 @@ MATCH_THRESHOLD = 0.72
 
 _MEMORY_INDEX: list[dict[str, str]] | None = None
 
-# Whisper transcribes Russian speech in Cyrillic, so the spoken name of a Latin-named
-# app never matches on its own. Seeded on first run and editable by the user.
+# Shorthand nobody spells out loud the way the Start menu does. Seeded on first run
+# and editable from the settings window, so this is a starting point rather than a list
+# to keep growing here. Dictating in a language not written in the Latin alphabet is
+# handled by transliteration below, not by entries here.
 DEFAULT_ALIASES = {
-    "калькулятор": "Calculator",
-    "блокнот": "Notepad",
-    "проводник": "File Explorer",
-    "параметры": "Settings",
-    "настройки": "Settings",
-    "диспетчер задач": "Task Manager",
-    "панель управления": "Control Panel",
-    "командная строка": "Command Prompt",
-    "терминал": "Terminal",
-    "часы": "Clock",
-    "камера": "Camera",
-    "почта": "Mail",
-    "календарь": "Calendar",
-    "фотографии": "Photos",
-    "магазин": "Microsoft Store",
-    "клод": "Claude",
-    "кодекс": "ChatGPT",
-    "курсор": "Cursor",
-    "обсидиан": "Obsidian",
-    "телеграм": "Telegram",
-    "хром": "Google Chrome",
-    "докер": "Docker Desktop",
-    "вс код": "Visual Studio Code",
-    "антигравити": "Antigravity",
+    "calc": "Calculator",
+    "explorer": "File Explorer",
+    "files": "File Explorer",
+    "file manager": "File Explorer",
+    "my computer": "File Explorer",
+    "cmd": "Command Prompt",
+    "command line": "Command Prompt",
+    "powershell": "Windows PowerShell",
+    "store": "Microsoft Store",
+    "chrome": "Google Chrome",
+    "vs code": "Visual Studio Code",
+    "vscode": "Visual Studio Code",
+    "docker": "Docker Desktop",
+    "photoshop": "Adobe Photoshop",
+    "task man": "Task Manager",
 }
 
 _TRANSLIT = {

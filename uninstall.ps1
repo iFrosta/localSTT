@@ -38,6 +38,14 @@ if (Test-Path $shortcut) {
     "Removed the autostart shortcut."
 }
 
+# The one registry key LocalSTT writes: the name and icon Windows puts on its
+# notifications. Removing it costs nothing if it was never created.
+$appId = "HKCU:\Software\Classes\AppUserModelId\iFrosta.LocalSTT"
+if (Test-Path $appId) {
+    Remove-Item $appId -Recurse -Force
+    "Removed the notification identity from the registry."
+}
+
 $venv = Join-Path $root ".venv"
 if (Test-Path $venv) {
     if (Confirm-Step "Delete the virtual environment at $venv?") {

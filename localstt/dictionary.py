@@ -57,7 +57,7 @@ class DevelopmentDictionary:
     def initial_prompt(self) -> str:
         if not self.terms:
             return ""
-        return "Технические термины и имена: " + ", ".join(self.terms)
+        return "Technical terms and names: " + ", ".join(self.terms)
 
     def prompt_overflow(self) -> int:
         """Characters past what Whisper will actually read, or 0."""

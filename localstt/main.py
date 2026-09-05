@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from . import preflight, settings_window, winui
+from . import preflight, settings_window, shell_identity, winui
 from .config import load_config
 from .logging_setup import setup_logging
 from .service import STTService
@@ -14,6 +14,10 @@ def main() -> None:
 
     logger = setup_logging()
     config = load_config()
+
+    # Also before any window: the shell reads the process's AppUserModelID as one is
+    # created, and that is what puts our name on a notification instead of Python's.
+    shell_identity.apply(logger)
 
     if preflight.should_run():
         logger.info("running the self-test: this device has not passed one yet")
