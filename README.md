@@ -222,7 +222,7 @@ save.
 | **History** | Off by default. On, every transcript is kept with its timestamp |
 | **Performance** | How long the last dictation and cleanup took |
 | **API** | Host and port |
-| **Health** | The full self-test, re-runnable, and the installed version with its update check |
+| **Health** | The full self-test, re-runnable |
 
 ### Languages
 
@@ -376,8 +376,8 @@ before the general one.
 Only what is listed in `commands.json` can run. Speech never executes an arbitrary shell
 command.
 
-- **`process`** — an absolute, existing `.exe`, `.cmd`, `.bat`, `.ps1` or `.vbs` with a
-  fixed argument list. `.ps1` runs through `pwsh.exe`, `.vbs` through `wscript.exe`.
+- **`process`** — an existing `.exe`, `.cmd`, `.bat`, `.ps1` or `.vbs` with a fixed
+  argument list. `.ps1` runs through `pwsh.exe`, `.vbs` through `wscript.exe`.
 - **`localstt`** — acts on the running app: `language`, `delivery` (`paste`/`typewrite`)
   or `repeat`, which delivers the last dictated text again.
 - **`microsoft_todo`** — queued into `%APPDATA%\LocalSTT\todo-queue.jsonl` until
@@ -400,8 +400,18 @@ spoken. `Settings → Voice commands` lists every command with the reason it is 
 its toggle writes `"enabled": false` back into the file.
 
 The shipped set is deliberately plain — lock, sleep, terminals, Notepad, Explorer, VS
-Code, the `localstt` actions, a To Do capture and the catch-all launcher. Add your own,
-or put an edited copy in `%APPDATA%\LocalSTT\commands.json` to keep it out of git's way.
+Code, the `localstt` actions, a To Do capture and the catch-all launcher — and its
+phrases are English. It is a starting point, not a vocabulary: a command may carry
+phrases in as many languages as you like, since Whisper transcribes whichever one you
+spoke.
+
+```json
+"patterns": ["lock the computer", "ordinateur verrouille", "sperr den rechner"]
+```
+
+Add your own, or put an edited copy in `%APPDATA%\LocalSTT\commands.json`, which wins
+over the shipped one — that keeps your set out of git's way, and `git pull` can never
+overwrite it.
 
 ### Launching applications
 
@@ -469,9 +479,9 @@ The last result is kept in `%APPDATA%\LocalSTT\preflight.json`.
 
 LocalSTT asks the GitHub releases API once a day whether a newer version has been
 published, and says so in the tray if there is one. It is one `GET`; nothing about the
-machine goes with it. The switch is on `Settings → General`, and the version card —
-which version is installed, what the last check found, and a **Check now** button — sits
-on both `General` and `Health`.
+machine goes with it. The switch and a **Check now** button are on `Settings → General`,
+and the footer of the settings window carries the installed version at all times — it
+turns into a link to the new release when there is one.
 
 Updating is manual, and depends on how it was installed: `git pull` in a clone, or
 download the newer archive from

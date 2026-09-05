@@ -4,11 +4,9 @@
     {
       "name": "system.lock",
       "patterns": [
-        "заблокируй компьютер",
-        "заблокируй экран",
-        "заблокируй систему",
         "lock the computer",
-        "lock the screen"
+        "lock the screen",
+        "lock the pc"
       ],
       "type": "process",
       "command": "C:\\Windows\\System32\\rundll32.exe",
@@ -19,10 +17,9 @@
     {
       "name": "system.sleep",
       "patterns": [
-        "отправь компьютер в сон",
-        "переведи компьютер в сон",
-        "уложи компьютер спать",
-        "put the computer to sleep"
+        "put the computer to sleep",
+        "sleep the computer",
+        "go to sleep"
       ],
       "type": "process",
       "command": "C:\\Windows\\System32\\rundll32.exe",
@@ -34,13 +31,9 @@
     {
       "name": "terminal.powershell",
       "patterns": [
-        "открой терминал powershell",
-        "открой powershell",
-        "открой пауэршелл",
-        "запусти powershell",
         "open powershell",
-        "powershell",
-        "пауэршелл"
+        "launch powershell",
+        "powershell"
       ],
       "type": "process",
       "command": "wt.exe",
@@ -55,11 +48,9 @@
     {
       "name": "terminal.wsl",
       "patterns": [
-        "открой терминал ubuntu",
-        "открой убунту",
-        "открой wsl",
         "open wsl",
-        "убунту"
+        "open ubuntu",
+        "open a linux terminal"
       ],
       "type": "process",
       "command": "wt.exe",
@@ -75,11 +66,9 @@
     {
       "name": "terminal.cmd",
       "patterns": [
-        "открой терминал cmd",
-        "открой командную строку",
-        "командная строка",
-        "открой cmd",
-        "open the command prompt"
+        "open the command prompt",
+        "open cmd",
+        "command prompt"
       ],
       "type": "process",
       "command": "wt.exe",
@@ -94,11 +83,9 @@
     {
       "name": "terminal.open",
       "patterns": [
-        "открой терминал",
-        "запусти терминал",
-        "новый терминал",
         "open a terminal",
-        "терминал"
+        "open the terminal",
+        "new terminal"
       ],
       "type": "process",
       "command": "wt.exe",
@@ -110,11 +97,9 @@
     {
       "name": "terminal.fallback",
       "patterns": [
-        "открой терминал",
-        "запусти терминал",
-        "новый терминал",
         "open a terminal",
-        "терминал"
+        "open the terminal",
+        "new terminal"
       ],
       "type": "process",
       "command": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
@@ -125,11 +110,9 @@
     {
       "name": "app.vscode",
       "patterns": [
-        "открой vs code",
-        "открой vscode",
-        "запусти vs code",
-        "открой вс код",
-        "open vs code"
+        "open vs code",
+        "open visual studio code",
+        "launch vs code"
       ],
       "type": "process",
       "command": "%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe",
@@ -138,23 +121,20 @@
     {
       "name": "app.notepad",
       "patterns": [
-        "открой блокнот",
-        "запусти блокнот",
-        "новый блокнот",
         "open notepad",
-        "блокнот"
+        "new notepad",
+        "launch notepad"
       ],
       "type": "process",
-      "command": "C:\\Windows\\System32\\notepad.exe",
+      "command": "notepad.exe",
       "args": []
     },
     {
       "name": "app.explorer",
       "patterns": [
-        "открой проводник",
-        "запусти проводник",
         "open explorer",
-        "проводник"
+        "open file explorer",
+        "open the file manager"
       ],
       "type": "process",
       "command": "C:\\Windows\\explorer.exe",
@@ -163,10 +143,8 @@
     {
       "name": "localstt.language.en",
       "patterns": [
-        "переключи на английский",
-        "переключись на английский",
-        "английский язык",
-        "switch to english"
+        "switch to english",
+        "set the language to english"
       ],
       "type": "localstt",
       "action": "language",
@@ -175,10 +153,8 @@
     {
       "name": "localstt.language.ru",
       "patterns": [
-        "переключи на русский",
-        "переключись на русский",
-        "русский язык",
-        "switch to russian"
+        "switch to russian",
+        "set the language to russian"
       ],
       "type": "localstt",
       "action": "language",
@@ -187,9 +163,8 @@
     {
       "name": "localstt.language.auto",
       "patterns": [
-        "определяй язык сам",
-        "автоопределение языка",
-        "detect the language"
+        "detect the language",
+        "detect the language automatically"
       ],
       "type": "localstt",
       "action": "language",
@@ -198,10 +173,9 @@
     {
       "name": "localstt.repeat",
       "patterns": [
-        "повтори последний текст",
-        "повтори вставку",
-        "вставь еще раз",
-        "paste that again"
+        "paste that again",
+        "repeat the last text",
+        "type that again"
       ],
       "type": "localstt",
       "action": "repeat"
@@ -209,9 +183,8 @@
     {
       "name": "localstt.delivery.typewrite",
       "patterns": [
-        "печатай текст",
-        "режим печати",
-        "type the text"
+        "type the text",
+        "switch to typing"
       ],
       "type": "localstt",
       "action": "delivery",
@@ -220,9 +193,8 @@
     {
       "name": "localstt.delivery.paste",
       "patterns": [
-        "вставляй через буфер",
-        "режим вставки",
-        "paste the text"
+        "paste the text",
+        "switch to pasting"
       ],
       "type": "localstt",
       "action": "delivery",
@@ -231,12 +203,10 @@
     {
       "name": "todo.create",
       "patterns": [
-        "создай задачу *",
-        "создай заметку *",
-        "добавь задачу *",
-        "добавь в todo *",
         "add todo *",
-        "add a task *"
+        "add a task *",
+        "create a task *",
+        "add a note *"
       ],
       "type": "microsoft_todo",
       "list": "Tasks"
@@ -244,10 +214,6 @@
     {
       "name": "app.open",
       "patterns": [
-        "открой *",
-        "запусти *",
-        "открыть *",
-        "запустить *",
         "open *",
         "launch *"
       ],

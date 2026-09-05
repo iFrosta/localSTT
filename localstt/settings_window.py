@@ -56,6 +56,7 @@ GLYPH_WARN = "\ue7ba"
 GLYPH_FAIL = "\ue783"
 GLYPH_HEALTH = "\ue95e"
 GLYPH_INFO = "\ue946"
+GLYPH_UPDATE = "\ue896"
 WARN_COLOR = "#f0a30a"
 
 
@@ -412,6 +413,17 @@ class SettingsWindow:
         self.health_badge.bind("<Button-1>", lambda e: self._show_section("health"))
         self._update_health_badge(preflight.load())
 
+        # And which version that machine is running, since the answer to "is this
+        # healthy" is half "is this current".
+        self._version_badge_url = ""
+        self.version_badge = tk.Label(
+            footer, text="", font=self.theme.font, bg=colors.surface,
+            fg=colors.text_secondary, cursor="hand2",
+        )
+        self.version_badge.pack(side="left", padx=(px(16), 0))
+        self.version_badge.bind("<Button-1>", lambda e: self._open_version_target())
+        self._update_version_badge()
+
         self.status = tk.Label(
             footer, text="", font=self.theme.font_small,
             bg=colors.surface, fg=colors.text_secondary,
@@ -445,6 +457,28 @@ class SettingsWindow:
             text = f"{len(problems)} problem(s)"
         self.health_badge.configure(text=f"{glyph}  {text}", fg=color)
 
+    def _update_version_badge(self) -> None:
+        """The footer carries the version, and says so when a newer one is published."""
+        colors = self.theme.colors
+        last = updates.last_check()
+        url = self._releases_url()
+        if url and last is not None and not last.stale and updates.is_newer(last.latest, __version__):
+            self._version_badge_url = url
+            self.version_badge.configure(
+                text=f"{GLYPH_UPDATE}  LocalSTT {last.latest.lstrip('vV')} available",
+                fg=colors.accent,
+            )
+        else:
+            self._version_badge_url = ""
+            self.version_badge.configure(text=f"LocalSTT {__version__}", fg=colors.text_secondary)
+
+    def _open_version_target(self) -> None:
+        """The release when there is one, otherwise the page with the check button."""
+        if self._version_badge_url:
+            webbrowser.open(self._version_badge_url)
+        else:
+            self._show_section("general")
+
     # ------------------------------------------------------------------ sections
 
     def _show_section(self, key: str) -> None:
@@ -459,9 +493,6 @@ class SettingsWindow:
         self.controls.clear()
 
         if section.custom == "health":
-            # Which version this is, and whether it is the current one, belong with the
-            # rest of "what state is this install in".
-            self._render_version()
             self._render_health()
             return
 
@@ -759,6 +790,7 @@ class SettingsWindow:
                 f"{update.label} \u2014 published {update.published[:10]}"
             )
             self._set_update_offer(update.version, update.url)
+        self._update_version_badge()
         self._version_card.refresh()
         self.status.configure(text="")
 
