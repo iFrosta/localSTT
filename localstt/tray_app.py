@@ -156,7 +156,7 @@ class LocalSTTTrayApp:
         if update is None:
             return
         self.update = update
-        self._notify("LocalSTT", f"{update.label}. Open the tray menu to get it.")
+        self._notify(f"{update.label}. Open the tray menu to get it.")
 
     def _open_update(self) -> None:
         if self.update is not None:
@@ -325,7 +325,7 @@ class LocalSTTTrayApp:
                     self.recorder = None
             self.service.logger.exception("recording failed: %s", exc)
             self._set_state(AppState.ERROR)
-            self._notify("LocalSTT error", str(exc))
+            self._notify(str(exc), "Error")
             self._finish_recording()
             return
 
@@ -337,7 +337,7 @@ class LocalSTTTrayApp:
                 return
             mode = self._resolve_mode_locked()
         self.service.logger.info("recording started mode=%s session=%s", mode, session)
-        self._notify("LocalSTT", f"Recording started ({mode})")
+        self._notify(f"Recording started ({mode})")
         if mode == "command" and self.config.command_auto_stop:
             self._set_state(AppState.COMMAND)
             threading.Thread(target=self._command_listen_loop, args=(session,), daemon=True).start()
@@ -430,7 +430,7 @@ class LocalSTTTrayApp:
             outcome.message,
             text[:120],
         )
-        self._notify("LocalSTT command", outcome.message[:120])
+        self._notify(outcome.message[:120])
         self._set_state(AppState.READY)
         self._finish_recording()
 
@@ -448,7 +448,7 @@ class LocalSTTTrayApp:
         self.service.logger.info(
             "command listening finished reason=%s message=%s text=%r", reason, message, text[:120]
         )
-        self._notify("LocalSTT command", message[:120])
+        self._notify(message[:120])
         self._set_state(AppState.READY)
         self._finish_recording()
 
@@ -483,7 +483,7 @@ class LocalSTTTrayApp:
         """Drop the current recording without transcribing or running anything."""
         self._stop_recorder_quietly()
         self.service.logger.info("recording cancelled by Esc session=%s", session)
-        self._notify("LocalSTT", "Recording cancelled")
+        self._notify("Recording cancelled")
         self._set_state(AppState.READY)
         self._finish_recording()
 
@@ -531,7 +531,7 @@ class LocalSTTTrayApp:
             if duration < 0.15:
                 self._set_state(AppState.READY)
                 wav_path.unlink(missing_ok=True)
-                self._notify("LocalSTT", "Recording was too short")
+                self._notify("Recording was too short")
                 self._finish_recording()
                 return
             self._set_state(AppState.TRANSCRIBING)
@@ -548,24 +548,24 @@ class LocalSTTTrayApp:
                     outcome.command_name,
                     outcome.message,
                 )
-                self._notify("LocalSTT command", outcome.message[:120])
+                self._notify(outcome.message[:120])
             else:
                 if mode == "cleanup":
                     self._set_state(AppState.CLEANUP)
                     text = polish_text(text, self.config, self.service.logger)
                 if text:
                     self._paste_text(text)
-                    self._notify("LocalSTT", f"Pasted {len(text)} chars")
+                    self._notify(f"Pasted {len(text)} chars")
                 else:
                     self.service.logger.warning("transcription returned empty text")
-                    self._notify("LocalSTT", "Whisper returned empty text")
+                    self._notify("Whisper returned empty text")
             wav_path.unlink(missing_ok=True)
             self._set_state(AppState.READY)
             self._finish_recording()
         except Exception as exc:
             self.service.logger.exception("transcription failed: %s", exc)
             self._set_state(AppState.ERROR)
-            self._notify("LocalSTT error", str(exc))
+            self._notify(str(exc), "Error")
             try:
                 wav_path.unlink(missing_ok=True)
             except OSError:
@@ -798,27 +798,27 @@ class LocalSTTTrayApp:
         if any(key.startswith("hotkey_") for key in keys):
             self._refresh_bindings()
             self._log_bindings("hotkeys rebound")
-        self._notify("LocalSTT", "Settings saved")
+        self._notify("Settings saved")
 
     def _set_delivery_method(self, method: str) -> None:
         self.config.delivery_method = method
         save_config(self.config)
         self.service.logger.info("delivery method changed to %s", method)
-        self._notify("LocalSTT delivery", method)
+        self._notify(f"Delivery: {method}")
 
     def _toggle_copy_to_clipboard(self) -> None:
         self.config.copy_to_clipboard = not self.config.copy_to_clipboard
         save_config(self.config)
         state = "on" if self.config.copy_to_clipboard else "off"
         self.service.logger.info("copy to clipboard set to %s", state)
-        self._notify("LocalSTT delivery", f"Copy to clipboard: {state}")
+        self._notify(f"Copy to clipboard: {state}")
 
     def _toggle_command_auto_stop(self) -> None:
         self.config.command_auto_stop = not self.config.command_auto_stop
         save_config(self.config)
         state = "on" if self.config.command_auto_stop else "off"
         self.service.logger.info("command auto-stop set to %s", state)
-        self._notify("LocalSTT commands", f"Auto-stop: {state}")
+        self._notify(f"Voice command auto-stop: {state}")
 
     def _set_microphone(self, index: int | None, name: str) -> None:
         # The name comes from the list the menu was built from: re-querying PortAudio
@@ -826,14 +826,14 @@ class LocalSTTTrayApp:
         self.config.microphone = index
         save_config(self.config)
         self.service.logger.info("microphone set to %s", name)
-        self._notify("LocalSTT microphone", name)
+        self._notify(f"Microphone: {name}")
 
     def _set_language(self, language: str) -> None:
         self.config.language = language
         self.service.backend.language = language
         save_config(self.config)
         self.service.logger.info("language changed to %s", language)
-        self._notify("LocalSTT language", language)
+        self._notify(f"Language: {language}")
 
     def _set_model(self, model: str) -> None:
         self.config.model = model
@@ -855,7 +855,7 @@ class LocalSTTTrayApp:
                 subprocess.Popen(["notepad.exe", str(path)])
             except Exception:
                 self.service.logger.exception("failed to open %s in Notepad", path)
-                self._notify("LocalSTT", f"Could not open {path}")
+                self._notify(f"Could not open {path}")
 
     def _restart(self) -> None:
         subprocess.Popen([sys.executable, "-m", "localstt.main"], cwd=str(INSTALL_DIR))
@@ -872,11 +872,34 @@ class LocalSTTTrayApp:
         self.icon.title = f"LocalSTT - {state.value}"
         self.service.logger.info("state=%s", state.value)
 
-    def _notify(self, title: str, message: str) -> None:
+    def _notify(self, message: str, title: str = "") -> None:
+        """Windows already writes "LocalSTT" across the top of the toast.
+
+        So a title here only repeats it, and most of these read as sentences on their
+        own. Errors keep one, because it changes how the line below is read.
+        """
         try:
-            self.icon.notify(message, title)
+            if title:
+                self.icon.notify(message, title)
+            else:
+                self._untitled_balloon(message)
         except Exception:
             self.service.logger.debug("tray notification failed", exc_info=True)
+
+    def _untitled_balloon(self, message: str) -> None:
+        """pystray substitutes the tray tooltip for an empty title -- which would read
+        "LocalSTT - ready" -- so this goes at the shell call it wraps instead."""
+        try:
+            from pystray._util import win32
+
+            self.icon._message(
+                win32.NIM_MODIFY, win32.NIF_INFO, szInfo=message, szInfoTitle=""
+            )
+        except Exception:
+            # Any pystray that does not look like this still shows the message; it just
+            # puts the tooltip above it.
+            self.service.logger.debug("untitled balloon unavailable", exc_info=True)
+            self.icon.notify(message)
 
     def _image(self, state: AppState) -> Image.Image:
         return branding.render_icon(COLORS[state])
