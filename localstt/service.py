@@ -88,18 +88,16 @@ class STTService:
         response_format: str = "json",
         beam_size: int | None = None,
         record: bool = True,
+        word_timestamps: bool = False,
     ) -> TranscriptionResult:
         with self.lock:
             self._refresh_dictionary()
-            result = self.backend.transcribe(audio, language=language, beam_size=beam_size)
+            result = self.backend.transcribe(
+                audio, language=language, beam_size=beam_size, word_timestamps=word_timestamps,
+            )
         result.text = self.dictionary.apply(result.text)
         if record:
-            self.metrics.transcription_count += 1
-            self.metrics.total_audio_duration += result.duration
-            self.metrics.total_processing_time += result.processing_time
-            self._record_history(result)
-            if self.config.performance_tracking:
-                performance.record_transcription(result, self.config, self.metrics_snapshot())
+            self.record_result(result)
         self.logger.info(
             "transcribed duration=%.2fs processing=%.2fs rtf=%.3f text=%r",
             result.duration,
@@ -109,9 +107,19 @@ class STTService:
         )
         return result
 
+    def record_result(self, result: TranscriptionResult) -> None:
+        """Record one completed dictation, including a dictation decoded in chunks."""
+        self.metrics.transcription_count += 1
+        self.metrics.total_audio_duration += result.duration
+        self.metrics.total_processing_time += result.processing_time
+        self._record_history(result)
+        if self.config.performance_tracking:
+            performance.record_transcription(result, self.config, self.metrics_snapshot())
+
     def health(self) -> dict[str, Any]:
         data = {
             "status": "ok",
+            "live_dictation": self.config.live_dictation,
             "backend": "faster-whisper",
             "model": self.config.model,
             "device": self.config.device,
@@ -153,6 +161,7 @@ class STTService:
                     text=True,
                     stderr=subprocess.STDOUT,
                     timeout=5,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 )
                 name = output.splitlines()[0].strip()
                 if name:

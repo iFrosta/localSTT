@@ -89,9 +89,11 @@ class AudioRecorder:
         self.close()
         return self.snapshot_to_wav(path)
 
-    def snapshot_to_wav(self, path: Path) -> float:
-        """Write everything recorded so far to a wav file, leaving the stream untouched."""
-        audio = self._buffered_audio()
+    def snapshot_to_wav(
+        self, path: Path, *, start_seconds: float = 0.0, max_seconds: float | None = None,
+    ) -> float:
+        """Snapshot an audio range without stopping or consuming the recording."""
+        audio = self._buffered_audio(start_seconds=start_seconds, max_seconds=max_seconds)
         if audio is None:
             return 0.0
 
@@ -146,11 +148,25 @@ class AudioRecorder:
         with self._lock:
             return len(self._chunks)
 
-    def _buffered_audio(self) -> np.ndarray | None:
+    def _buffered_audio(
+        self, *, start_seconds: float = 0.0, max_seconds: float | None = None,
+    ) -> np.ndarray | None:
+        start = max(0, int(round(start_seconds * self.sample_rate)))
+        end = None if max_seconds is None else start + int(max_seconds * self.sample_rate)
         with self._lock:
-            if not self._chunks:
+            pieces = []
+            position = 0
+            for chunk in self._chunks:
+                next_position = position + len(chunk)
+                if next_position > start and (end is None or position < end):
+                    pieces.append(chunk[max(0, start - position):
+                                        None if end is None else max(0, end - position)])
+                position = next_position
+                if end is not None and position >= end:
+                    break
+            if not pieces:
                 return None
-            return np.concatenate(self._chunks, axis=0)
+            return np.concatenate(pieces, axis=0)
 
     def _tail_audio(self, max_seconds: float) -> np.ndarray | None:
         needed = max(1, int(max_seconds * self.sample_rate))

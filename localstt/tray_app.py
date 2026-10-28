@@ -36,6 +36,7 @@ from .config import (
 )
 from .ollama_cleanup import polish_text
 from .service import STTService
+from .live_dictation import LiveDictation
 from . import branding, hotkeys, settings_window, text_input, tray_menu, updates
 from .tray_menu import MenuItem, separator
 from .window_focus import get_foreground_window, set_foreground_window
@@ -98,6 +99,8 @@ class LocalSTTTrayApp:
             "LocalSTT", self._image(self.state), "LocalSTT", None, on_menu=self._show_menu
         )
         self.recorder: AudioRecorder | None = None
+        self.live_session: LiveDictation | None = None
+        self.live_delivery_blocked = False
         self.pressed: set[str] = set()
         self.recording_mode: str | None = None
         self.chord_modifiers: set[str] = set()
@@ -143,7 +146,10 @@ class LocalSTTTrayApp:
         threading.Thread(target=server.run, daemon=True).start()
 
     def _start_hotkeys(self) -> None:
-        self.listener = keyboard.Listener(on_press=self._on_press, on_release=self._on_release)
+        self.listener = keyboard.Listener(
+            on_press=self._on_press, on_release=self._on_release,
+            win32_event_filter=self._keyboard_event_filter,
+        )
         self.listener.start()
         self._log_bindings("global hotkeys ready")
 
@@ -207,6 +213,12 @@ class LocalSTTTrayApp:
             self.pressed.clear()
         return True
 
+    @staticmethod
+    def _keyboard_event_filter(_message, data) -> bool:
+        # Unicode characters typed by LocalSTT must not trigger user-defined
+        # single-key shortcuts or the cancel binding through the global hook.
+        return not (data.flags & 0x10 and data.dwExtraInfo == text_input.INPUT_MARKER)
+
     def _on_press(self, key) -> None:
         name = hotkeys.key_name(key)
         if name is None or self._ignore_while_rebinding():
@@ -266,12 +278,15 @@ class LocalSTTTrayApp:
         should_stop = False
         session = 0
         with self.state_lock:
+            matched_before = self._match_binding(self.pressed)
             if name:
                 self.pressed.discard(name)
             held_for = time.perf_counter() - self.hotkey_down_at if self.hotkey_down_at else 0.0
             if (
                 self.recording_mode is not None
                 and not self.stop_in_progress
+                and matched_before is not None
+                and name in self.bindings[matched_before]
                 and self._match_binding(self.pressed) is None
                 and held_for >= self.config.hotkey_tap_seconds
             ):
@@ -338,6 +353,17 @@ class LocalSTTTrayApp:
             mode = self._resolve_mode_locked()
         self.service.logger.info("recording started mode=%s session=%s", mode, session)
         self._notify(f"Recording started ({mode})")
+        if mode == "dictation" and self.config.live_dictation:
+            with self.state_lock:
+                if session != self.session_id or self.stop_in_progress:
+                    return
+                self.live_delivery_blocked = False
+                live = LiveDictation(
+                    recorder, self.service, lambda text: self._deliver_live_text(session, text),
+                )
+                self.live_session = live
+                self.service.logger.info("live dictation started session=%s", session)
+                live.start()
         if mode == "command" and self.config.command_auto_stop:
             self._set_state(AppState.COMMAND)
             threading.Thread(target=self._command_listen_loop, args=(session,), daemon=True).start()
@@ -481,6 +507,11 @@ class LocalSTTTrayApp:
 
     def _cancel_recording(self, session: int) -> None:
         """Drop the current recording without transcribing or running anything."""
+        live = self.live_session
+        if live is not None:
+            live.cancel()
+            if live.text:
+                self._save_last_transcript(live.text)
         self._stop_recorder_quietly()
         self.service.logger.info("recording cancelled by Esc session=%s", session)
         self._notify("Recording cancelled")
@@ -504,6 +535,10 @@ class LocalSTTTrayApp:
         if recorder is None:
             self.service.logger.warning("stop requested before recorder was ready")
             self._finish_recording()
+            return
+
+        if self.live_session is not None:
+            self._stop_live_dictation(self.live_session)
             return
 
         wav_path = Path(tempfile.gettempdir()) / f"localstt-{int(time.time() * 1000)}.wav"
@@ -572,9 +607,64 @@ class LocalSTTTrayApp:
                 pass
             self._finish_recording()
 
+    def _deliver_live_text(self, session: int, text: str) -> int:
+        """Never move focus or paste a whole prefix again after partial delivery."""
+        sent = 0
+        for char in text:
+            with self.state_lock:
+                live = self.live_session
+                if (session != self.session_id or live is None or live.cancelled.is_set()
+                        or self.live_delivery_blocked):
+                    break
+                if self.pressed & {"ctrl", "win", "alt", "shift"}:
+                    break
+                target = self.target_hwnd
+            if not target or get_foreground_window() != target:
+                self.live_delivery_blocked = True
+                self.service.logger.info("live typing stopped because focus changed")
+                break
+            if not text_input.type_unicode_text(char, self.config.typewrite_interval_seconds):
+                self.live_delivery_blocked = True
+                self.service.logger.warning("live typing failed; full text will remain in clipboard")
+                break
+            sent += 1
+        return sent
+
+    def _stop_live_dictation(self, live: LiveDictation) -> None:
+        try:
+            self._stop_recorder_quietly()
+            live.stopped.set()
+            self._set_state(AppState.TRANSCRIBING)
+            live.done.wait()
+            self._wait_for_hotkeys_released()
+            live.flush_delivery()
+            if live.text:
+                self._save_last_transcript(live.text)
+                if self.config.copy_to_clipboard or live.delivered < len(live.text):
+                    self._set_clipboard_text(live.text)
+                result = live.result()
+                if result is not None:
+                    self.service.record_result(result)
+                if live.delivered < len(live.text):
+                    self._notify("Typing paused; full transcript copied to clipboard")
+                else:
+                    self._notify(f"Typed {len(live.text)} chars")
+            elif live.error is None:
+                self._notify("Whisper returned empty text")
+            if live.error is not None:
+                raise live.error
+            self._set_state(AppState.READY)
+        except Exception as exc:
+            self.service.logger.exception("live dictation finish failed")
+            self._set_state(AppState.ERROR)
+            self._notify(str(exc), "Error")
+        finally:
+            self._finish_recording()
+
     def _finish_recording(self) -> None:
         with self.state_lock:
             self.recorder = None
+            self.live_session = None
             self.recording_mode = None
             self.chord_modifiers = set()
             self.stop_in_progress = False
@@ -858,7 +948,10 @@ class LocalSTTTrayApp:
                 self._notify(f"Could not open {path}")
 
     def _restart(self) -> None:
-        subprocess.Popen([sys.executable, "-m", "localstt.main"], cwd=str(INSTALL_DIR))
+        subprocess.Popen(
+            [sys.executable, "-m", "localstt.main"], cwd=str(INSTALL_DIR),
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
         self._exit()
 
     def _exit(self) -> None:

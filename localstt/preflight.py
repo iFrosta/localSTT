@@ -195,6 +195,7 @@ def _query_gpu() -> dict[str, Any] | None:
             text=True,
             stderr=subprocess.STDOUT,
             timeout=15,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except (OSError, subprocess.SubprocessError):
         return None

@@ -49,6 +49,7 @@ class ASRBackend(ABC):
         language: str | None = None,
         beam_size: int | None = None,
         vad_filter: bool | None = None,
+        word_timestamps: bool = False,
     ) -> TranscriptionResult:
         raise NotImplementedError
 
@@ -95,6 +96,7 @@ class FasterWhisperBackend(ASRBackend):
         language: str | None = None,
         beam_size: int | None = None,
         vad_filter: bool | None = None,
+        word_timestamps: bool = False,
     ) -> TranscriptionResult:
         if self.model is None:
             self.load()
@@ -107,12 +109,19 @@ class FasterWhisperBackend(ASRBackend):
             beam_size=beam_size or self.beam_size,
             vad_filter=self.vad_filter if vad_filter is None else vad_filter,
             initial_prompt=self.initial_prompt or None,
+            word_timestamps=word_timestamps,
         )
         segments = []
         parts = []
         for segment in segments_iter:
             parts.append(segment.text)
-            segments.append({"start": segment.start, "end": segment.end, "text": segment.text})
+            item = {"start": segment.start, "end": segment.end, "text": segment.text}
+            if word_timestamps:
+                item["words"] = [
+                    {"start": w.start, "end": w.end, "word": w.word}
+                    for w in (segment.words or [])
+                ]
+            segments.append(item)
 
         processing_time = time.perf_counter() - start
         duration = float(getattr(info, "duration", 0.0) or 0.0)

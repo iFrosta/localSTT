@@ -302,7 +302,11 @@ def _execute_process(command: dict[str, Any], config: AppConfig, logger) -> Comm
 
     parent = executable.parent
     logger.info("executing voice command %s: %r", name, cmd)
-    subprocess.Popen(cmd, cwd=str(parent) if parent.is_dir() else None)
+    # Utility scripts should not flash a console. Explicit terminal commands
+    # (.exe, including wt.exe/powershell.exe) retain their normal visible window.
+    hidden = suffix in {".ps1", ".cmd", ".bat"} and not command.get("show_console", False)
+    subprocess.Popen(cmd, cwd=str(parent) if parent.is_dir() else None,
+                     **(_no_window() if hidden else {}))
     return CommandOutcome(True, f"Executed: {name}", name)
 
 

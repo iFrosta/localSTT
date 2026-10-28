@@ -15,6 +15,7 @@ else:
     user32 = None
 
 
+INPUT_MARKER = 0x4C535454  # LocalSTT-owned SendInput events
 INPUT_KEYBOARD = 1
 KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_UNICODE = 0x0004
@@ -86,7 +87,7 @@ def _utf16_units(text: str) -> list[int]:
 def _send_unicode_unit(unit: int, *, key_up: bool) -> bool:
     global last_error
     flags = KEYEVENTF_UNICODE | (KEYEVENTF_KEYUP if key_up else 0)
-    ki = KEYBDINPUT(0, unit, flags, 0, 0)
+    ki = KEYBDINPUT(0, unit, flags, 0, INPUT_MARKER)
     u = INPUTUNION()
     u.ki = ki
     event = INPUT(INPUT_KEYBOARD, u)

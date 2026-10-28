@@ -267,6 +267,26 @@ whatever the clipboard setting says.
 
 ---
 
+### Type while speaking
+
+Enable **Settings → Delivery → Type while speaking** for incremental dictation.
+The switch saves immediately and applies to the next recording. Tap the dictation
+shortcut (Ctrl+Win by default) to start and tap again to finish. Holding it still
+records, but delivery waits for modifiers to be released.
+
+Confirmed words are typed in small chunks while recording. This uses faster decoding
+and shorter context than transcription after Stop, so accuracy and punctuation can
+differ. Already typed text is never rewritten. Cancel stops future output and leaves
+text already typed in place. Cleanup dictation still waits for the complete recording.
+
+Keep the cursor in the same field. If focus moves to another window, typing stops;
+the full transcript is copied to the clipboard at the end. Otherwise live typing
+respects **Leave the transcript in the clipboard**.
+
+Settings reset scrolling when changing sections and keep Save/Discard visible.
+Background GPU checks, restarts and utility scripts do not create console windows;
+a script command can opt in with `"show_console": true`.
+
 ## Dictionary
 
 Whisper mangles technical vocabulary, and it spells product names the way they sound

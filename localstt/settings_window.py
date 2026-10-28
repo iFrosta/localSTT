@@ -136,6 +136,18 @@ def build_sections(config: AppConfig, gpu_total_gb: float | None, logger) -> lis
         needed = preflight.model_vram_gb(config.model, compute)
         compute_labels[compute] = f"{compute}  (~{needed:.1f} GB VRAM)" if needed else compute
 
+    def set_live_dictation(enabled: bool) -> bool:
+        previous = config.live_dictation
+        config.live_dictation = bool(enabled)
+        try:
+            save_config(config)
+        except OSError:
+            config.live_dictation = previous
+            logger.exception("could not save live dictation setting")
+            return False
+        logger.info("live dictation %s", "enabled" if enabled else "disabled")
+        return True
+
     return [
         Section("general", "General", "", custom="general", fields=[
             Field("model", "Whisper model", "Larger models are more accurate and need more VRAM.",
@@ -191,6 +203,11 @@ def build_sections(config: AppConfig, gpu_total_gb: float | None, logger) -> lis
                   kind="number"),
         ]),
         Section("delivery", "Delivery", "", fields=[
+            Field("live_dictation", "Type while speaking",
+                  "Tap the dictation shortcut to start and again to finish. Text appears in small chunks. "
+                  "Applies immediately. Cancel stops future output; text already typed stays. "
+                  "AI cleanup waits until the end.",
+                  kind="toggle", getter=lambda: config.live_dictation, setter=set_live_dictation),
             Field("delivery_method", "How text is delivered",
                   "Paste is instant; typewrite works in fields that block paste.",
                   kind="choice", options=["paste", "typewrite"],
@@ -283,6 +300,8 @@ class SettingsWindow:
         colors = self.theme.colors
         px = self.theme.px
 
+        # Reserve the footer first: a tall body must not push Save/Discard off-screen.
+        self._build_footer()
         body = tk.Frame(self.window, bg=colors.window)
         body.pack(fill="both", expand=True)
 
@@ -329,8 +348,6 @@ class SettingsWindow:
             "<Configure>", lambda e: self.canvas.itemconfigure(self._content_window, width=e.width)
         )
         self.window.bind_all("<MouseWheel>", self._on_wheel)
-
-        self._build_footer()
 
     def _on_wheel(self, event) -> None:
         try:
@@ -483,6 +500,9 @@ class SettingsWindow:
 
     def _show_section(self, key: str) -> None:
         section = next(s for s in self.sections if s.key == key)
+        # Rebuild at the top. Keeping a long page's scroll offset can leave the
+        # new widgets outside the viewport, with Tk retaining the old geometry.
+        self.canvas.yview_moveto(0)
         for nav_key, canvas in self.nav_buttons.items():
             canvas.selected = nav_key == key
             self._paint_nav(canvas)

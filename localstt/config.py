@@ -115,6 +115,7 @@ class AppConfig:
     # Off by default: typewrite delivers the text without the clipboard, so leaving the
     # transcript there afterwards would overwrite whatever the user had copied.
     copy_to_clipboard: bool = False
+    live_dictation: bool = False
     delivery_method: str = "typewrite"
     typewrite_interval_seconds: float = 0.001
     hotkey_dictation: str = "ctrl+win"
