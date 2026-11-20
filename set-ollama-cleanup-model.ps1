@@ -9,7 +9,6 @@ param(
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "_env.ps1")
 
-Set-Location (Get-LocalSttRoot)
-$arguments = @("-m", "localstt.cleanup_model", "--model", $Model, "--apply", "--timeout", $TimeoutSeconds)
+$arguments = @("--cleanup-model", $Model, "--apply", "--timeout", $TimeoutSeconds)
 if ($Pull) { $arguments += "--pull" }
-& (Get-LocalSttPython) @arguments
+Invoke-LocalSttCli -Arguments $arguments -FailureMessage "Cleanup model configuration failed"

@@ -12,5 +12,18 @@ if (-not $Output) {
 }
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Output) | Out-Null
 
-Set-Location (Get-LocalSttRoot)
-& (Get-LocalSttPython) benchmark.py @WavFiles --output $Output
+$rows = foreach ($file in $WavFiles) {
+    $data = Invoke-LocalSttCli -Arguments @("--transcribe", $file) -FailureMessage "Transcription failed: $file" | ConvertFrom-Json
+    [pscustomobject]@{
+        file            = $file
+        duration        = $data.duration
+        processing_time = $data.processing_time
+        realtime_factor = $(if ($data.duration) { $data.processing_time / $data.duration } else { 0 })
+        backend         = $data.backend
+        model           = $data.model
+        compute_type    = $data.compute_type
+        text            = $data.text
+    }
+}
+$rows | Export-Csv -LiteralPath $Output -NoTypeInformation -Encoding UTF8 -Append
+$rows

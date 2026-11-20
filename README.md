@@ -5,7 +5,8 @@ Speech recognition that runs entirely on your own GPU, with a Windows 11 tray ap
 an optional AI cleanup pass and an OpenAI-compatible HTTP endpoint.
 
 Nothing is uploaded. No account, no API key, no network calls except the ones you ask
-for — the model is downloaded once and everything after that is local.
+for — the model is downloaded once and everything after that is local. The application
+is native C++: no Python, no virtual environment, no CUDA Toolkit at runtime.
 
 [Русская версия](README.ru.md)
 
@@ -26,9 +27,12 @@ for — the model is downloaded once and everything after that is local.
 - [Voice commands](#voice-commands)
 - [HTTP API](#http-api)
 - [Self-test and health](#self-test-and-health)
+- [Updates](#updates)
 - [Autostart](#autostart)
 - [Files and folders](#files-and-folders)
+- [How it is built](#how-it-is-built)
 - [Dependencies](#dependencies)
+- [The Python version](#the-python-version)
 - [Does it run on macOS or Linux?](#does-it-run-on-macos-or-linux)
 - [Privacy](#privacy)
 - [License](#license)
@@ -40,7 +44,7 @@ for — the model is downloaded once and everything after that is local.
 | | |
 | --- | --- |
 | **Dictate anywhere** | Hold `Ctrl+Win`, talk, let go. The text goes into whatever field had focus — a browser, an IDE, a chat box, a terminal. Tap instead of hold to start, tap again to stop. |
-| **Runs on your GPU** | [faster-whisper](https://github.com/SYSTRAN/faster-whisper) on CTranslate2, `large-v3-turbo` by default. Several times faster than real time on a modern card. |
+| **Runs on your GPU** | Whisper on [CTranslate2](https://github.com/OpenNMT/CTranslate2), called directly from C++, `large-v3-turbo` by default. Several times faster than real time on a modern card. |
 | **AI cleanup** | `Ctrl+Shift+Win` sends the transcript through a local [Ollama](https://ollama.com) model first, which strips filler words and fixes punctuation without changing what you said. |
 | **Voice commands** | `Ctrl+Alt+Win` matches what you said against `commands.json` and runs it. Nothing is typed. Only listed actions can run. |
 | **Types or pastes** | Types character by character by default, which works in fields that block paste; switch to clipboard paste when you want speed. |
@@ -57,9 +61,9 @@ for — the model is downloaded once and everything after that is local.
 | **OS** | Windows 10 version 2004 (build 19041) or newer, 64-bit | Windows 11 is what it is developed against; the tray menu and settings window draw the Windows 11 look. |
 | **GPU** | NVIDIA, compute capability 7.0 or newer (RTX 20-series, GTX 16-series, Volta and up) | **There is no CPU fallback.** LocalSTT refuses to start without a usable CUDA device, and says why. |
 | **VRAM** | 4 GB free for the default model | See the table below. On a tight card, drop the compute type to `int8_float16`. |
-| **Driver** | NVIDIA 527.41 or newer | What the CUDA 12 wheels need. No CUDA Toolkit installation is required — the wheels carry their own DLLs. |
-| **Python** | 3.10 – 3.13, 64-bit | 3.12 is what it is built and tested against. The installer offers to install it for you if there isn't one, and finds an existing one whether or not it is on `PATH`. |
-| **Disk** | ~4 GB | ~2.5 GB of Python packages, plus the model (1.6 GB for `large-v3-turbo`). |
+| **Driver** | NVIDIA 527.41 or newer | What the bundled CUDA 12 libraries need. No CUDA Toolkit installation is required — the application carries its own DLLs. |
+| **Disk** | ~4 GB | ~2.2 GB of CUDA, cuDNN and CTranslate2 libraries, plus the model (1.6 GB for `large-v3-turbo`). A build from source keeps its downloads too: plan for ~10 GB. |
+| **Build tools** | Only to build from source | Visual Studio 2022 Build Tools with *Desktop development with C++* (MSVC, Windows SDK, CMake). The release archive needs none of it. |
 | **Microphone** | Any input Windows can see | Picked in `Settings → Audio`, or left on the Windows default. |
 | **Ollama** | Optional | Only for the AI cleanup hotkey. Everything else works without it. |
 
@@ -79,6 +83,17 @@ Cleanup runs an Ollama model on the same card, so it has to fit in what is left 
 
 ## Install
 
+Two ways in: unzip the release archive, or build from a clone.
+
+### Download the archive
+
+Releases carry a `LocalSTT-<version>-win64.zip` with the application, its runtime and
+the `large-v3-turbo` model already inside. Unzip it anywhere and run
+`start-localstt.vbs`: nothing to install, no Python, no build tools. Use the archive if
+you just want the thing to work.
+
+### Build from source
+
 ```powershell
 git clone https://github.com/iFrosta/localSTT.git
 cd localSTT
@@ -87,28 +102,27 @@ cd localSTT
 
 That is the whole thing. The installer stays inside the folder it is run from:
 
-1. checks Windows, Python and the GPU — and offers to install Python with `winget`
-   if there is none,
-2. creates `.venv` next to itself,
-3. installs the tested dependency set (`-Latest` installs the newest instead),
-4. installs the cuBLAS and cuDNN wheels — no CUDA Toolkit needed,
-5. writes `%APPDATA%\LocalSTT\config.json` if there isn't one,
-6. runs the self-test.
+1. checks Windows, the GPU and the C++ build tools, and says how to install the tools
+   if they are missing,
+2. downloads the pinned dependencies into `native\`, each checked against its SHA-256:
+   CTranslate2, the CUDA and cuDNN libraries, the model and the Silero voice activity
+   model. Python wheels are only opened as ZIP archives for their DLLs; no Python runs,
+3. compiles `LocalSTT.exe` (the tray app) and `localstt-cli.exe` (the same program for a
+   console) into `native-install\`, bundles the runtime next to them and runs the
+   native test suite,
+4. runs the self-test.
 
 Useful switches:
 
 ```powershell
-.\install.ps1 -Autostart      # also start LocalSTT with Windows
-.\install.ps1 -Latest         # newest packages instead of the pinned set
-.\install.ps1 -InstallPython  # install Python with winget without asking
-.\install.ps1 -SkipSelfTest   # skip the check at the end
+.\install.ps1 -Autostart        # also start LocalSTT with Windows
+.\install.ps1 -Model large-v3   # bundle another model
+.\install.ps1 -SkipBuild        # reuse the build in native-install\
+.\install.ps1 -SkipSelfTest     # skip the check at the end
 ```
 
-Python does not have to be on `PATH`. The installer also looks where the python.org
-installer puts a per-user install, and at a `Python312\` folder next to itself — so a
-"put everything in one folder" setup works without touching the system.
-
-If PowerShell refuses to run the script, allow scripts for this session:
+The first run downloads several gigabytes; later runs reuse every file whose hash still
+matches. If PowerShell refuses to run the script, allow scripts for this session:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
@@ -116,9 +130,10 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 ### Where it gets installed
 
-By default LocalSTT runs from the folder you cloned into — portable, no admin, and
-`git pull` upgrades it. To install it somewhere proper instead, `-InstallTo` copies the
-application there and builds the environment in the copy:
+By default LocalSTT runs from the folder you cloned into: portable, no admin, and
+`git pull` followed by `.\install.ps1` upgrades it. To install it somewhere proper
+instead, `-InstallTo` copies the finished application there, without the sources and
+the build files:
 
 ```powershell
 # Per user. No administrator, and this is the recommended one.
@@ -128,46 +143,38 @@ application there and builds the environment in the copy:
 .\install.ps1 -InstallTo "$env:ProgramFiles\LocalSTT"
 ```
 
-**Program Files works, but per user is the better fit.** The dependencies live in a
-virtual environment *inside* the install folder, so every upgrade writes there — under
-Program Files that means an elevated console every single time, for a tool only one
-person uses. `%LOCALAPPDATA%\Programs` is where VS Code, Ollama and Python put
-themselves for the same reason.
+The installed copy has the same layout as the release archive: the executables, their
+DLLs, `models\`, `licenses\`, the files you edit and the scripts that run it.
 
 If you do install for all users, everything still works: settings, history and logs
-already live in `%APPDATA%\LocalSTT`, and an edit to `commands.json` from the settings
-window is written to a copy there rather than failing against the read-only original.
+already live in `%APPDATA%\LocalSTT`, and an edit to `commands.json`, `dictionary.json`
+or `cleanup-prompt.txt` from the settings window is written to a copy there rather than
+failing against the read-only original.
 
 One registry key is written, under `HKCU\Software\Classes\AppUserModelId`: the name
-and icon Windows puts on LocalSTT's notifications, which would otherwise be Python's.
-The uninstaller removes it. Nothing else goes near the registry, and the folder can be
-moved or renamed afterwards — every script finds itself. To undo it all, run the uninstaller **from the install
-folder**:
+and icon Windows puts on LocalSTT's notifications. The uninstaller removes it. Nothing
+else goes near the registry, and the folder can be moved or renamed afterwards — every
+script finds itself. To undo it all, run the uninstaller **from the install folder**:
 
 ```powershell
-.\uninstall.ps1           # stops it, removes autostart and the venv
+.\uninstall.ps1           # stops it, removes autostart; in a clone, offers to delete the build and downloads
 .\uninstall.ps1 -AppData  # also delete settings, history and logs
 ```
-
-### Or download the archive
-
-Releases carry a `LocalSTT-<version>-win64.zip` with a Python and every dependency
-already inside it. Unzip it anywhere and run `start-localstt.vbs` — no Python to
-install, no `pip`, no virtual environment. It is around 1.5 GB, because the cuBLAS and
-cuDNN runtimes alone are 1.3 GB of that.
-
-Use the archive if you just want the thing to work; clone the repository if you want to
-follow changes with `git pull`.
 
 ### Start it
 
 ```powershell
 .\start-localstt.vbs   # tray only, no console
-.\run-dev.ps1          # in this console, with the log on screen
+.\run-native.ps1       # the same, from PowerShell
+.\run-dev.ps1          # localstt-cli.exe in this console
 ```
 
-The tray icon shows the state by colour: green ready, red recording, blue transcribing,
-purple cleanup, orange command, yellow error.
+The launchers pass `--root` with their own folder, which is where `commands.json`,
+`dictionary.json` and `cleanup-prompt.txt` are read from. Only one copy runs at a time;
+stop it with `.\stop-localstt.ps1` or `Exit` in the tray menu.
+
+The tray icon shows the state by colour: green ready, red recording or listening for a
+command, amber transcribing or cleaning up. Left-click opens Settings, right-click the menu.
 
 ---
 
@@ -206,16 +213,16 @@ pressed as one gesture. Bindings that do not overlap are unaffected.
 
 ## Settings
 
-Right-click the tray icon → `Settings`. Every field in `config.json` is here, grouped,
-with `Open config.json` at the bottom for the ones a UI should not pretend to own.
-Changing the model, compute type or API port needs a restart; everything else applies on
-save.
+Click the tray icon, or right-click it → `Settings`. Every field in `config.json` is
+here, grouped, with `Open config.json` at the bottom for the ones a UI should not pretend
+to own. Changing the model, compute type, recognition backend or API port needs a
+restart; everything else applies on save.
 
 ![The General page](docs/images/settings-general.png)
 
 | Page | Holds |
 | --- | --- |
-| **General** | Model, compute type, language, beam size, voice activity filter, start with Windows |
+| **General** | Model, compute type, language, beam size, voice activity filter, update check, start with Windows, the version |
 | **Audio** | Microphone, sample rate, input normalisation |
 | **Hotkeys** | The four bindings, the tap threshold and the chord grace period |
 | **Delivery** | Typing vs pasting, the clipboard setting, typing speed |
@@ -225,6 +232,11 @@ save.
 | **Performance** | How long the last dictation and cleanup took |
 | **API** | Host and port |
 | **Health** | The full self-test, re-runnable |
+| **Advanced** | Recognition backend, model and voice activity model paths, the lists the dropdowns offer |
+
+The microphone is a Windows `waveIn` device, saved as `native_microphone`. The
+`microphone` number the Python version saves is kept but not used by the native app:
+pick the device again, or leave it on the Windows default.
 
 ### Languages
 
@@ -331,7 +343,7 @@ over. Let LocalSTT pick and download it:
 To see the recommendation without changing anything:
 
 ```powershell
-.\.venv\Scripts\python.exe -m localstt.cleanup_model
+.\native-install\localstt-cli.exe --cleanup-model
 ```
 
 To pick one yourself, adding `-Pull` if it still has to be downloaded:
@@ -438,7 +450,7 @@ overwrite it.
 ### Launching applications
 
 `app_launch` matches against every app the Start menu can open — desktop shortcuts, Store
-packages and registered app ids alike, via `Get-StartApps`. The index is cached in
+packages and registered app ids alike, read from the shell's Applications folder. The index is cached in
 `%APPDATA%\LocalSTT\app-index.json` and rebuilt daily, or on demand from
 `Settings → Voice commands → Rebuild app index`.
 
@@ -473,24 +485,25 @@ curl.exe -X POST http://127.0.0.1:7777/v1/audio/transcriptions `
 .\transcribe-file.ps1 C:\path\sample.wav
 ```
 
-`/health` and `/metrics` report the loaded model, the device and the timings.
+`/health` and `/metrics` report the loaded model, the device, the version and the
+timings. A request's `model` field does not swap the loaded model. Uploads are limited to
+128 MiB, and there is no authentication: keep `api_host` on `127.0.0.1`.
 
 ---
 
 ## Self-test and health
 
-LocalSTT tests itself the first time it starts on a machine it has not seen, and repeats
-that until the machine passes. It checks the NVIDIA driver version, VRAM and compute
-capability, the CUDA runtime DLLs in the venv, that CTranslate2 sees a CUDA device, that
-the model and compute type fit in VRAM, the microphone, the API port, which voice
-commands this machine can run, and whether the cleanup model fits in what is left.
+LocalSTT tests itself every time it starts. It checks that the model loaded on a CUDA
+device (and refuses a silent fall back to the CPU), the GPU and its VRAM, the
+microphones, and whether Ollama answers and which cleanup model fits in what is left.
+The self-test from the console also lists which voice commands this machine can run.
 
 Only failures that make transcription impossible stop the app — a missing microphone or a
 busy port are reported and it starts anyway. Run it any time from `Settings → Health`, or:
 
 ```powershell
-.\.venv\Scripts\python.exe -m localstt.preflight
-.\health.ps1        # asks the running app instead
+.\run-diagnostics.ps1   # the self-test, without the tray app
+.\health.ps1            # asks the running app instead
 ```
 
 The last result is kept in `%APPDATA%\LocalSTT\preflight.json`.
@@ -505,17 +518,18 @@ machine goes with it. The switch and a **Check now** button are on `Settings →
 and the footer of the settings window carries the installed version at all times — it
 turns into a link to the new release when there is one.
 
-Updating is manual, and depends on how it was installed: `git pull` in a clone, or
-download the newer archive from
+Updating is manual, and depends on how it was installed: `git pull` and `.\install.ps1`
+in a clone, or download the newer archive from
 [Releases](https://github.com/iFrosta/localSTT/releases) and unzip it over the folder.
-Settings, history and the model cache live outside the folder, so neither loses them.
+Settings and history live outside the folder, so neither loses them. The version comes
+from one place, `localstt\__init__.py`, which the build reads.
 
 ---
 
 ## Autostart
 
-`Settings → General → Start with Windows` adds or removes a shortcut in the Startup
-folder and takes effect immediately. From a console:
+`Settings → General → Start with Windows` adds or removes a shortcut to `LocalSTT.exe`
+in the Startup folder and takes effect immediately. From a console:
 
 ```powershell
 .\install-autostart.ps1
@@ -531,47 +545,93 @@ Everything the app writes lives in `%APPDATA%\LocalSTT`, never in the install fo
 | Path | What |
 | --- | --- |
 | `config.json` | Every setting |
-| `logs\localstt.log` | The application log |
+| `logs\localstt-native.log` | The application log |
 | `last-transcript.txt` | The most recent transcript |
 | `history.jsonl` | Dictation history, if you turn it on |
 | `command-history.jsonl` | What voice commands did |
 | `performance.json` | Timings for the last dictation |
 | `preflight.json` | The last self-test result |
+| `update-check.json` | When updates were last checked, and the answer |
 | `app-index.json`, `app-aliases.json` | The launcher's index and your name overrides |
 | `commands.json`, `dictionary.json`, `cleanup-prompt.txt` | Optional. Override the copies in the install folder |
 
-Models are downloaded by `huggingface_hub` into `%USERPROFILE%\.cache\huggingface`, which
-other tools share — deleting the install folder does not remove them.
+The model lives with the application, in `models\` next to the executables
+(`native-install\models\` in a clone), so deleting the folder removes it. Setup reuses a
+matching model already in the Hugging Face cache instead of downloading it again.
+
+---
+
+## How it is built
+
+One C++20 program, built twice: `LocalSTT.exe` without a console for the tray, and
+`localstt-cli.exe` with one for scripts (`--transcribe`, `--serve`, `--self-test`,
+`--devices`, `--cleanup-model`; `--help` lists them). The sources are in `native\`:
+
+| File | What |
+| --- | --- |
+| `main.cpp` | Startup, the keyboard hook, the recording sessions, delivery, the HTTP API |
+| `ui.cpp` | Tray icon and menu, notifications, the settings window, drawn in the Windows 11 style |
+| `engine.cpp`, `ct2.cpp` | Recognition: CTranslate2 (default) or the optional whisper.cpp backend; Ollama cleanup |
+| `features.cpp`, `tokenizer.cpp` | Whisper's log-mel features and tokenizer, matched against the original implementation |
+| `live_dictation.cpp` | Type while speaking: which words are stable enough to type |
+| `platform.cpp` | Microphone capture, `SendInput`, the clipboard, audio file decoding |
+| `hotkeys.cpp` | Key names, chord parsing and matching, the hotkey conflict check |
+| `dictionary.cpp` | `dictionary.json` and `cleanup-prompt.txt`, re-read when they change |
+| `commands.cpp` | Voice command matching, the allowlist and the app index |
+| `updates.cpp` | The GitHub releases check |
+| `common.cpp` | `config.json`, logging, where the editable files are read from |
+
+`native\setup.ps1` fetches the pinned dependencies listed in `native\dependencies.json`;
+`native\build.ps1` configures CMake into `build-native\`, compiles, copies the runtime
+into `native-install\` and runs the tests. `native\README.md` has the details, including
+building by hand and the GPU tests.
+
+`config.json` is shared with the Python version, under the same names. The native app
+keeps every setting it does not know; the Python version drops the native-only ones
+(`native_microphone`, `native_backend` and the model path overrides) when it saves, and
+they return to their defaults.
 
 ---
 
 ## Dependencies
 
-Installed by `install.ps1`; the tested versions are pinned in `requirements-lock.txt`.
+Fetched by `native\setup.ps1`, pinned by version and SHA-256 in
+`native\dependencies.json`; their licenses ship in `licenses\`.
 
-**Required** (`requirements.txt`)
-
-| Package | For |
+| Component | For |
 | --- | --- |
-| `faster-whisper`, `ctranslate2` | Speech recognition |
-| `sounddevice`, `numpy` | Capturing the microphone |
-| `pynput` | Global hotkeys |
-| `pyperclip` | Clipboard delivery |
-| `pystray`, `Pillow` | The tray icon |
-| `fastapi`, `uvicorn`, `python-multipart` | The HTTP endpoint |
-| `requests` | Talking to Ollama |
-| `psutil` | The self-test's process and port checks |
+| CTranslate2 4.8.2 | Speech recognition, called from C++ |
+| cuBLAS, cuDNN, NVRTC (CUDA 12) | The GPU runtime CTranslate2 needs |
+| Whisper `large-v3-turbo` (CTranslate2 format) | The model |
+| Silero VAD | The voice activity filter |
+| whisper.cpp | The optional second backend (`Settings → Advanced`) |
+| nlohmann/json, cpp-httplib | `config.json` and the other files; the HTTP API and Ollama |
+| MSVC runtime | Shipped next to the executables, so no redistributable is needed |
 
-Tkinter draws the settings window and the tray menu; it ships with the official Python
-installer.
+Everything else is Windows itself: Media Foundation decodes audio files, `waveIn` records
+the microphone, WinHTTP asks GitHub about updates.
 
 **Optional**
 
 | | What it adds | Without it |
 | --- | --- | --- |
-| `requirements-cuda.txt` (`nvidia-cublas-cu12`, `nvidia-cudnn-cu12`) | The CUDA 12 runtime CTranslate2 needs, ~1 GB of wheels | Nothing runs, unless a matching CUDA 12 runtime is already on the search path |
 | [Ollama](https://ollama.com) and a small instruct model | The `Ctrl+Shift+Win` cleanup pass | Plain dictation is unaffected |
 | Windows Terminal (`wt.exe`) | The shipped terminal voice commands | Those commands switch themselves off |
+
+---
+
+## The Python version
+
+LocalSTT started as a Python application, and that version is still in `localstt\` and
+remains maintained on the `main` branch. On this branch it is the fallback: stop the
+native app first (both use the same hotkeys and port), then
+
+```powershell
+.\run-python-legacy.ps1
+```
+
+It needs the virtual environment that `install.ps1` on `main` creates. Neither version
+deletes the other's files, and the version number in `localstt\__init__.py` is shared.
 
 ---
 
@@ -582,25 +642,25 @@ rewritten are the parts that make it what it is:
 
 | What | Why it is Windows-only | What a port needs |
 | --- | --- | --- |
-| Typing the text | `SendInput` through `user32.dll`, with hand-built `INPUT` structs (`text_input.py`) | macOS: `CGEventCreateKeyboardEvent`, plus Accessibility permission. Linux: `XTEST`, or `uinput` under Wayland |
+| Typing the text | `SendInput` through `user32.dll` (`platform.cpp`) | macOS: `CGEventCreateKeyboardEvent`, plus Accessibility permission. Linux: `XTEST`, or `uinput` under Wayland |
 | Focus handling | `GetForegroundWindow` / `SetForegroundWindow`, to put the text back where it came from | macOS: `NSWorkspace` and the Accessibility API. Wayland: no equivalent, by design |
-| Global hotkeys | pynput works on all three, but there is no Windows key on a Mac and the modifier semantics differ | Rebind to `Cmd`-based chords — the new binding UI already handles that |
-| Tray icon and menus | A hand-drawn Windows 11 Fluent menu, DWM dark title bars, rounded corners (`winui.py`, `tray_menu.py`) | A native menu bar item on macOS; the custom drawing does not transfer |
-| Settings window | The same Fluent controls, drawn on Tk canvases | Runs as-is under Tk, but would look foreign |
+| Global hotkeys | A low-level Windows keyboard hook (`main.cpp`); there is no Windows key on a Mac either | An event tap on macOS, evdev or a compositor protocol on Linux |
+| Tray icon, menus and settings | Win32 windows drawn in the Windows 11 Fluent style with GDI+ and DWM (`ui.cpp`) | A native menu bar item and window on macOS; the drawing does not transfer |
 | Autostart | A `.lnk` in the Startup folder | A `launchd` plist, or a `.desktop` autostart entry |
-| Voice commands | `.exe` / `.ps1` / `.vbs` paths, Store packages, `Get-StartApps` | A different launcher model entirely |
-| **The engine** | **Nothing** — CTranslate2 and faster-whisper are cross-platform | This part would just work |
+| Voice commands | `.exe` / `.ps1` / `.vbs` paths, Store packages, the shell's Applications folder | A different launcher model entirely |
+| Microphone and audio files | `waveIn` and Media Foundation (`platform.cpp`) | Core Audio, ALSA or PipeWire; a decoding library |
+| **The engine** | **Nothing** — CTranslate2 is cross-platform C++ | This part would just work |
 
 **On Apple Silicon there is a second problem:** there is no CUDA. CTranslate2 has no Metal
 backend, so a Mac port would run on the CPU — usable on an M-series chip, but slower — or
 be rebuilt on something else: `whisper.cpp`, which has Metal and Core ML support, or MLX.
 That is a different recognition backend, not a port.
 
-Roughly: the recognition core, the config, the dictionary, the cleanup pass and the HTTP
-API — about half the code — carry over unchanged. The input layer, the tray UI and the
-command runner would each be rewritten per platform. `backends.py` is already an abstract
-interface, and `text_input.py`, `window_focus.py`, `winui.py`, `tray_menu.py` and
-`autostart.py` are where every Windows call lives.
+Roughly: the recognition core (`engine.cpp`, `ct2.cpp`, `features.cpp`,
+`tokenizer.cpp`, `live_dictation.cpp`), the config, the dictionary, hotkey matching, the
+cleanup pass and the HTTP API carry over unchanged. `platform.cpp`, `ui.cpp`, the hook in
+`main.cpp` and the command runner are where the Windows calls live, and would each be
+rewritten per platform.
 
 ---
 
@@ -608,9 +668,9 @@ interface, and `text_input.py`, `window_focus.py`, `winui.py`, `tray_menu.py` an
 
 - Audio never leaves the machine. Recognition is local; cleanup talks to Ollama on
   `127.0.0.1`.
-- Two things reach the network, and nothing else: the model is downloaded from Hugging
-  Face the first time, and — once a day — the GitHub releases API is asked whether a
-  newer version exists. The update check sends nothing about the machine, but GitHub
+- Two things reach the network, and nothing else: the dependencies and the model are
+  downloaded when you build (the release archive already has them), and — once a day —
+  the GitHub releases API is asked whether a newer version exists. The update check sends nothing about the machine, but GitHub
   sees the request and therefore the address it came from. Turn it off in
   `Settings → General → Check for updates`, or set `update_check_enabled` to `false`.
   Pulling an Ollama model is a third, and only when you ask for it.

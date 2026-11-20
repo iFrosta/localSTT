@@ -1,37 +1,41 @@
 <#
 .SYNOPSIS
-    Sets LocalSTT up in place: virtual environment, dependencies, self-test.
+    Builds LocalSTT from this checkout and sets it up: native application, model, self-test.
 
 .DESCRIPTION
-    By default everything lands next to this script, so the folder can sit anywhere and
-    be moved later. Nothing touches the registry; the only thing written outside the
-    folder is %APPDATA%\LocalSTT, and the Startup shortcut if -Autostart is given.
+    Downloads the pinned, hash-checked dependencies (CTranslate2, the CUDA and cuDNN
+    libraries, the Whisper model and the Silero voice activity model) into native\,
+    compiles the application into native-install\ and runs its tests. Nothing needs
+    Python: the native application runs without it, and setup only opens the Python
+    wheels it takes DLLs from as ZIP archives.
 
-    Re-running is safe: an existing virtual environment is reused and the packages in it
-    are brought up to what the requirements ask for.
+    By default the application then runs from native-install\ inside this folder. With
+    -InstallTo the finished application, without the sources and build files, is copied
+    to a folder of its own instead. Nothing touches the registry; the only things written
+    outside the folder are %APPDATA%\LocalSTT and, with -Autostart, the Startup shortcut.
+
+    Re-running is safe: downloads already present and verified are not repeated, and
+    an existing install keeps the commands, dictionary and cleanup prompt edited there.
+
+    Building needs Visual Studio 2022 Build Tools with "Desktop development with C++"
+    (MSVC, Windows SDK, CMake tools). Running the result needs only the NVIDIA driver.
 
 .PARAMETER InstallTo
-    Copy the application to this folder and install there, instead of running from where
-    the sources are. Two locations are worth knowing:
+    Copy the built application to this folder and run it from there. Two locations are
+    worth knowing:
 
         "$env:LOCALAPPDATA\Programs\LocalSTT"   per user, no administrator needed
         "$env:ProgramFiles\LocalSTT"             all users, administrator needed
 
-    Per user is the better choice for this application. Its dependencies live in a
-    virtual environment inside the install folder, so upgrading them means writing
-    there -- which under Program Files needs an elevated console every time.
+    Under Program Files the files a user edits are read-only; LocalSTT then keeps an
+    edited copy of them in %APPDATA%\LocalSTT, which every later read prefers.
 
-.PARAMETER InstallPython
-    Install Python with winget without asking first. Without it the script offers to do
-    the same thing interactively when no suitable Python is found.
+.PARAMETER Model
+    The Whisper model to download and bundle. large-v3-turbo is the default and the
+    model the settings window selects first.
 
-.PARAMETER SkipCuda
-    Do not install the cuBLAS and cuDNN wheels. Only for a machine that already has a
-    matching CUDA 12 runtime on the search path -- LocalSTT will not start without one.
-
-.PARAMETER Latest
-    Install the newest release of every dependency instead of the tested set in
-    requirements-lock.txt.
+.PARAMETER SkipBuild
+    Use the build already in native-install\ instead of downloading and compiling.
 
 .PARAMETER Autostart
     Also start LocalSTT when Windows starts, for this user.
@@ -47,15 +51,15 @@
 [CmdletBinding()]
 param(
     [string]$InstallTo,
-    [switch]$InstallPython,
-    [switch]$SkipCuda,
-    [switch]$Latest,
+    [ValidateSet("large-v3-turbo", "large-v3", "medium", "small")]
+    [string]$Model = "large-v3-turbo",
+    [switch]$SkipBuild,
     [switch]$Autostart,
     [switch]$SkipSelfTest
 )
 
 $ErrorActionPreference = "Stop"
-# pip and nvidia-smi write ordinary notices to stderr. On PowerShell 7.3+ that would
+# Native tools write ordinary notices to stderr. On PowerShell 7.3+ that would
 # otherwise be a terminating error and abort a perfectly good install.
 $PSNativeCommandUseErrorActionPreference = $false
 $root = $PSScriptRoot
@@ -86,64 +90,12 @@ if ($build -lt 19041) {
     Write-Warn "Windows 10 2004 (build 19041) or newer is expected; older builds are untested."
 }
 
-# The tray icon, the settings window and the text delivery all use Segoe UI and the
-# Fluent icon font. They are part of Windows 10/11, so this is a sanity check.
+# The tray icon and the settings window use Segoe UI and the Fluent icon font. They are
+# part of Windows 10/11, so this is a sanity check.
 $fontDir = Join-Path $env:WINDIR "Fonts"
 if (-not (Test-Path (Join-Path $fontDir "segoeui.ttf"))) {
     Write-Warn "Segoe UI was not found; the interface will fall back to another font."
 }
-
-# --------------------------------------------------------------- python
-
-Write-Step "Looking for Python"
-
-
-function Install-Python {
-    <#
-        .SYNOPSIS
-        Install Python 3.12 for this user with winget, and find it afterwards.
-    #>
-    $winget = Get-Command "winget.exe" -ErrorAction SilentlyContinue
-    if (-not $winget) { return $null }
-
-    Write-Note "Installing Python 3.12 with winget. This takes a minute."
-    & $winget.Source install --exact --id Python.Python.3.12 --scope user --silent `
-        --accept-package-agreements --accept-source-agreements
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warn "winget could not install Python (exit code $LASTEXITCODE)."
-        return $null
-    }
-
-    # A fresh install is not on this process's PATH: the environment was captured when
-    # the console started. Re-read it, and look in the install folder either way.
-    $env:PATH = [Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" +
-                [Environment]::GetEnvironmentVariable("PATH", "User")
-    return Find-LocalSttPython
-}
-
-$python = Find-LocalSttPython
-if (-not $python) {
-    Write-Warn "No 64-bit Python 3.10 - 3.13 on this machine."
-
-    $shouldInstall = $InstallPython
-    if (-not $shouldInstall -and [Environment]::UserInteractive) {
-        $answer = Read-Host "    Install Python 3.12 now, for this user only? [Y/n]"
-        $shouldInstall = $answer -notmatch '^(n|no)$'
-    }
-    if ($shouldInstall) { $python = Install-Python }
-}
-
-if (-not $python) {
-    Write-Host ""
-    Write-Host "LocalSTT needs 64-bit Python 3.10 - 3.13. Install it with either of:" -ForegroundColor Red
-    Write-Host "    winget install -e --id Python.Python.3.12" -ForegroundColor Red
-    Write-Host "    https://www.python.org/downloads/windows/" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Then run this script again. It does not need Python on PATH: an install" -ForegroundColor Red
-    Write-Host "for the current user, or a Python unpacked into this folder, is found too." -ForegroundColor Red
-    throw "Python not found"
-}
-Write-Ok "Python $($python.Version) at $($python.Path)"
 
 # --------------------------------------------------------------- gpu
 
@@ -164,6 +116,36 @@ if ($gpuName) {
     Write-Warn "fallback, so it will refuse to start until one is present."
 }
 
+# --------------------------------------------------------------- build
+
+if ($SkipBuild) {
+    Write-Step "Using the existing build"
+    Write-Ok (Get-LocalSttNative)
+} else {
+    Write-Step "Looking for the C++ build tools"
+
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+    $tools = $null
+    if (Test-Path $vswhere) {
+        $tools = & $vswhere -latest -products "*" -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    }
+    if (-not $tools) {
+        Write-Host ""
+        Write-Host "Building LocalSTT needs Visual Studio 2022 Build Tools with the C++ workload:" -ForegroundColor Red
+        Write-Host "    winget install -e --id Microsoft.VisualStudio.2022.BuildTools --override ``" -ForegroundColor Red
+        Write-Host "      `"--passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended`"" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Or download the release archive, which needs no build at all." -ForegroundColor Red
+        throw "C++ build tools not found"
+    }
+    Write-Ok "$tools"
+
+    Write-Step "Downloading dependencies and building ($Model)"
+    Write-Note "The first run downloads several GB: CUDA and cuDNN libraries and the model."
+    & (Join-Path $root "native\build.ps1") -Model $Model
+    Write-Ok "Built and tested: $(Get-LocalSttNative)"
+}
+
 # --------------------------------------------------------------- copy into place
 
 function Test-Administrator {
@@ -172,6 +154,7 @@ function Test-Administrator {
         [Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+$appRoot = $root
 if ($InstallTo) {
     Write-Step "Copying to $InstallTo"
 
@@ -182,7 +165,6 @@ if ($InstallTo) {
 
     # Program Files is the case worth naming, but any folder the user cannot write is
     # the same problem, and saying so before copying half of it is kinder.
-    $parent = Split-Path -Parent $InstallTo
     $needsAdmin = $false
     foreach ($protected in @([Environment]::GetFolderPath("ProgramFiles"),
                              ${env:ProgramFiles(x86)},
@@ -200,83 +182,31 @@ if ($InstallTo) {
         Write-Host "    .\install.ps1 -InstallTo `"`$env:LOCALAPPDATA\Programs\LocalSTT`"" -ForegroundColor Red
         throw "Administrator rights required for $InstallTo"
     }
-    New-Item -ItemType Directory -Force -Path $parent | Out-Null
 
-    # robocopy, not Copy-Item: it takes the exclusions as arguments and does not choke
-    # on a long path. 0-7 are its success codes; 8 and up are real failures.
-    $excludedDirs = @(".git", ".venv", "__pycache__", "Python312", "downloads",
-                      "diagnostics", ".pytest_cache", ".mypy_cache", ".ruff_cache")
-    robocopy $root $InstallTo /E /XD @excludedDirs /XF "*.pyc" /NFL /NDL /NJH /NJS /NP | Out-Null
-    if ($LASTEXITCODE -ge 8) { throw "Copying to $InstallTo failed (robocopy $LASTEXITCODE)" }
-    $global:LASTEXITCODE = 0
+    # A copy that is running keeps its executables locked.
+    $stop = Join-Path $InstallTo "stop-localstt.ps1"
+    if (Test-Path $stop) { & $stop | Out-Null }
 
-    $root = $InstallTo
-    Write-Ok "Application copied to $root"
-    if ($needsAdmin) {
-        Write-Warn "Installed for all users. Upgrading the dependencies later means"
-        Write-Warn "running this script from an elevated console again."
-    }
+    Copy-LocalSttApp -Destination $InstallTo -Model $Model
+    $appRoot = $InstallTo
+    Write-Ok "Application copied to $appRoot"
 }
-
-# --------------------------------------------------------------- virtual environment
-
-Write-Step "Creating the virtual environment"
-
-$venv = Join-Path $root ".venv"
-$venvPython = Join-Path $venv "Scripts\python.exe"
-if (Test-Path $venvPython) {
-    Write-Note "Reusing $venv"
-} else {
-    & $python.Path -m venv $venv
-    if ($LASTEXITCODE -ne 0) { throw "Could not create the virtual environment in $venv" }
-    Write-Ok "Created $venv"
-}
-
-& $venvPython -m pip install --upgrade pip --quiet --disable-pip-version-check
-if ($LASTEXITCODE -ne 0) { throw "Could not upgrade pip" }
-
-# --------------------------------------------------------------- dependencies
-
-Write-Step "Installing dependencies"
-
-$core = if ($Latest) { "requirements.txt" } else { "requirements-lock.txt" }
-$cuda = if ($Latest) { "requirements-cuda.txt" } else { "requirements-cuda-lock.txt" }
-
-Write-Note "From $core"
-& $venvPython -m pip install --disable-pip-version-check -r (Join-Path $root $core)
-if ($LASTEXITCODE -ne 0) { throw "Installing $core failed" }
-
-if ($SkipCuda) {
-    Write-Warn "Skipping cuBLAS and cuDNN as asked. CTranslate2 needs them on the search path."
-} else {
-    Write-Note "From $cuda (cuBLAS and cuDNN, about 1 GB)"
-    & $venvPython -m pip install --disable-pip-version-check -r (Join-Path $root $cuda)
-    if ($LASTEXITCODE -ne 0) { throw "Installing $cuda failed" }
-}
-Write-Ok "Dependencies installed"
-
-# --------------------------------------------------------------- configuration
-
-Write-Step "Writing the configuration"
-
-# Creates %APPDATA%\LocalSTT\config.json with the defaults if it is not there yet, and
-# leaves an existing one alone.
-Set-Location $root
-& $venvPython -c "from localstt.config import load_config, save_config, CONFIG_PATH; save_config(load_config()); print(CONFIG_PATH)"
-if ($LASTEXITCODE -ne 0) { throw "Could not write config.json" }
 
 if ($Autostart) {
-    & (Join-Path $root "install-autostart.ps1")
+    & (Join-Path $appRoot "install-autostart.ps1")
 }
 
 # --------------------------------------------------------------- self-test
 
 if (-not $SkipSelfTest) {
     Write-Step "Running the self-test"
-    Write-Note "The model is downloaded on the first run; this can take a few minutes."
-    & $venvPython -m localstt.preflight
+    $cli = Join-Path $appRoot "localstt-cli.exe"
+    if (-not (Test-Path $cli)) { $cli = Join-Path $appRoot "native-install\localstt-cli.exe" }
+    & $cli --root $appRoot --self-test | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        Write-Warn "The self-test found something that blocks transcription -- see above."
+        Write-Warn "The self-test found something that blocks transcription. Run run-diagnostics.ps1 for the report."
+    } else {
+        Write-Ok "Model, GPU and microphone are ready. The report is on the Health page in Settings."
     }
 }
 
@@ -284,10 +214,11 @@ if (-not $SkipSelfTest) {
 
 Write-Step "Done"
 Write-Host @"
-    Start it:            $root\start-localstt.vbs   (no console)
-    Start with a log:    $root\run-dev.ps1
-    Start with Windows:  $root\install-autostart.ps1
-    Settings:            right-click the tray icon
+    Start it:            $appRoot\start-localstt.vbs   (no console)
+    Start with a log:    $appRoot\run-dev.ps1
+    Start with Windows:  $appRoot\install-autostart.ps1
+    Settings:            click the tray icon
 
     Hold Ctrl+Win and talk. Let go and the text is typed where the cursor is.
+    The hotkeys can be changed in Settings > Hotkeys.
 "@ -ForegroundColor Gray
