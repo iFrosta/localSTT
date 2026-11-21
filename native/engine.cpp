@@ -187,7 +187,8 @@ Result Engine::transcribe(const std::vector<float>& audio,std::string language,i
     std::string text; std::string word; double wstart=0,wend=0;
     auto flush=[&]{ if(!word.empty()){try { r.hypothesis.words.push_back({wide(word),wstart,wend}); }catch(...){} word.clear();} };
     for(int i=0;i<p.whisper_full_n_segments_fn(p.ctx);++i){
-        text+=p.whisper_full_get_segment_text_fn(p.ctx,i);
+        const char* segment=p.whisper_full_get_segment_text_fn(p.ctx,i);if(is_hallucination(std::string_view(segment)))continue;
+        text+=segment;
         if(words)for(int j=0;j<p.whisper_full_n_tokens_fn(p.ctx,i);++j){ auto t=p.whisper_full_get_token_data_fn(p.ctx,i,j); if(t.id>=p.whisper_token_eot_fn(p.ctx))continue;
             std::string piece=p.whisper_full_get_token_text_fn(p.ctx,i,j); if(piece.empty())continue;
             if(piece.front()==' '&&!word.empty())flush(); if(word.empty())wstart=std::max(0.0,t.t0*.01);

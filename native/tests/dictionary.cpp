@@ -74,6 +74,17 @@ int main(int argc, char** argv) {
             auto shipped_dictionary = Dictionary::load(fs::path(argv[1]) / "dictionary.json");
             check(shipped_dictionary.term_count() > 0 && shipped_dictionary.prompt_overflow() == 0, "Shipped dictionary fits Whisper's prompt");
         }
+        // Subtitle credits Whisper writes over silence are dropped; dictated text is not.
+        for (std::wstring_view credit : {L" Субтитры создал DimaTorzok", L"Субтитры сделал DimaTorzok.", L"СУБТИТРЫ ПОДГОТОВИЛ Алексей",
+                                         L"Редактор субтитров А.Синецкая Корректор А.Егорова", L"Продолжение следует...",
+                                         L" Спасибо за просмотр!", L"Thanks for watching!", L"Subtitles by the Amara.org community"})
+            check(is_hallucination(credit), "Subtitle credit is a hallucination");
+        for (std::wstring_view speech : {L"Субтитры не работают в плеере", L"Продолжение следует завтра утром",
+                                         L"Спасибо за просмотр и за отзыв о ролике", L"Субтитры", L"", L"  ", L"Thanks for the review"})
+            check(!is_hallucination(speech), "Dictated text is kept");
+        check(is_hallucination(std::string_view("\xd0\xa1\xd1\x83\xd0\xb1\xd1\x82\xd0\xb8\xd1\x82\xd1\x80\xd1\x8b \xd1\x81\xd0\xbe\xd0\xb7\xd0\xb4\xd0\xb0\xd0\xbb DimaTorzok")),
+              "UTF-8 decoder output is checked");
+        check(!is_hallucination(std::string_view("\xd0")), "A segment cut inside a UTF-8 sequence is kept");
         fs::remove_all(root);
         std::cout << "Dictionary, cleanup prompt and user file tests passed\n";
         return 0;

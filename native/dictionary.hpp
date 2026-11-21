@@ -39,4 +39,13 @@ private:
 // unreadable or empty file falls back to the built-in prompt.
 std::string default_cleanup_prompt();
 std::string load_cleanup_prompt(const fs::path& path);
+
+// Whisper learned from subtitled video, and over a pause or background noise it can
+// write the credits it saw there: "Субтитры создал DimaTorzok", "Продолжение следует",
+// "Thanks for watching". True when a whole decoded segment is one of those, so the
+// segment is dropped instead of typed. Only whole segments are matched: the same words
+// inside a longer dictated sentence are kept.
+bool is_hallucination(std::wstring_view segment);
+// The same for decoder output. A segment cut inside a UTF-8 sequence is never dropped.
+bool is_hallucination(std::string_view utf8_segment);
 }

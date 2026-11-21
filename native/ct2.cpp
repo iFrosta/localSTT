@@ -1,4 +1,5 @@
 #include "ct2.hpp"
+#include "dictionary.hpp"
 #include "features.hpp"
 #include "tokenizer.hpp"
 #include <ctranslate2/models/whisper.h>
@@ -107,11 +108,15 @@ Result Ct2Backend::transcribe(const std::vector<float>& input,std::string langua
         const auto& tokens=result.sequences_ids[0];std::vector<size_t> boundaries;for(size_t i=1;i<tokens.size();++i)if(tokens[i-1]>=timestamps&&tokens[i]>=timestamps)boundaries.push_back(i);
         const bool single_end=tokens.size()>=2&&tokens[tokens.size()-2]<timestamps&&tokens.back()>=timestamps;
         size_t next=seek+count;std::vector<size_t> accepted;
+        // A segment Whisper made up over silence (subtitle credits) is neither typed nor
+        // kept as context, where it would make the next window repeat it.
+        auto keep=[&](size_t from,size_t to){std::vector<size_t> part;for(size_t i=from;i<to;++i)if(tokens[i]<eot)part.push_back(tokens[i]);
+            if(!part.empty()&&!is_hallucination(tok.decode(part)))accepted.insert(accepted.end(),part.begin(),part.end());};
         if(!boundaries.empty()){
             if(single_end)boundaries.push_back(tokens.size());size_t last=0;
-            for(size_t boundary:boundaries){for(size_t i=last;i<boundary;++i)if(tokens[i]<eot)accepted.push_back(tokens[i]);last=boundary;}
+            for(size_t boundary:boundaries){keep(last,boundary);last=boundary;}
             if(!single_end){size_t frames=(tokens[boundaries.back()-1]-timestamps)*2;next=seek+std::clamp(frames,size_t(1),count);}
-        }else for(auto token:tokens)if(token<eot)accepted.push_back(token);
+        }else keep(0,tokens.size());
         std::string decoded=tok.decode(accepted);complete+=decoded;
         if(word_times&&!accepted.empty()){
             auto aligned=p.model->align(encoded,start_sequence,std::vector<std::vector<size_t>>{accepted},std::vector<size_t>{count},7)[0].get();if(stopped())break;

@@ -113,3 +113,33 @@ std::string load_cleanup_prompt(const fs::path& path) {
     return prompt;
 }
 }
+
+namespace localstt {
+bool is_hallucination(std::wstring_view segment) {
+    // Lower case, ё as е, and every run of punctuation or spaces as one space.
+    std::wstring text;
+    for (wchar_t c : lower(std::wstring(segment))) {
+        if (c == L'ё') c = L'е';
+        if (word_char(c) && c != L'_' && c != L'-') text += c;
+        else if (!text.empty() && text.back() != L' ') text += L' ';
+    }
+    if (!text.empty() && text.back() == L' ') text.pop_back();
+    if (text.empty()) return false;
+    const auto has = [&](std::wstring_view part) { return text.find(part) != text.npos; };
+    if (has(L"dimatorzok") || has(L"торзок") || has(L"amara org")) return true;
+    if (text.starts_with(L"редактор субтитров") || text.starts_with(L"корректор субтитров")) return true;
+    if (text.starts_with(L"субтитры ")) {
+        // "Субтитры создал/сделал/подготовил ..." and similar credits, not a sentence
+        // that merely starts with the word.
+        for (std::wstring_view verb : {L"созда", L"сдела", L"делал", L"подготов", L"предостав", L"перев", L"выполн", L"редакт"})
+            if (has(verb)) return true;
+    }
+    for (std::wstring_view phrase : {L"продолжение следует", L"спасибо за просмотр", L"подписывайтесь на канал",
+                                     L"thanks for watching", L"thank you for watching", L"thank you so much for watching"})
+        if (text == phrase) return true;
+    return false;
+}
+bool is_hallucination(std::string_view utf8_segment) {
+    try { return is_hallucination(std::wstring_view(wide(utf8_segment))); } catch (const std::exception&) { return false; }
+}
+}
