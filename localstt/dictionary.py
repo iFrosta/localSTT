@@ -69,3 +69,28 @@ class DevelopmentDictionary:
             pattern = re.compile(rf"(?<![\w-]){re.escape(phrase)}(?![\w-])", flags=re.IGNORECASE | re.UNICODE)
             result = pattern.sub(replacement, result)
         return result
+
+
+# Whisper learned from subtitled video, and over a pause or background noise it can
+# write the credits it saw there: "Субтитры создал DimaTorzok", "Продолжение следует",
+# "Thanks for watching". Only whole segments are matched, so the same words inside a
+# longer dictated sentence are kept.
+_CREDIT_MARKERS = ("dimatorzok", "торзок", "amara org")
+_CREDIT_PREFIXES = ("редактор субтитров", "корректор субтитров")
+_CREDIT_VERBS = ("созда", "сдела", "делал", "подготов", "предостав", "перев", "выполн", "редакт")
+_CREDIT_PHRASES = frozenset({
+    "продолжение следует", "спасибо за просмотр", "подписывайтесь на канал",
+    "thanks for watching", "thank you for watching", "thank you so much for watching",
+})
+
+
+def is_hallucination(segment: str) -> bool:
+    """Whether a whole decoded segment is a subtitle credit rather than speech."""
+    text = " ".join(re.sub(r"[\W_]+", " ", segment.lower().replace("ё", "е")).split())
+    if not text:
+        return False
+    if any(marker in text for marker in _CREDIT_MARKERS) or text.startswith(_CREDIT_PREFIXES):
+        return True
+    if text.startswith("субтитры ") and any(verb in text for verb in _CREDIT_VERBS):
+        return True
+    return text in _CREDIT_PHRASES

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .cuda_paths import configure_cuda_dll_search
+from .dictionary import is_hallucination
 
 CUDA_DLL_DIRS = configure_cuda_dll_search()
 
@@ -114,6 +115,9 @@ class FasterWhisperBackend(ASRBackend):
         segments = []
         parts = []
         for segment in segments_iter:
+            # Subtitle credits made up over silence are neither typed nor timed.
+            if is_hallucination(segment.text):
+                continue
             parts.append(segment.text)
             item = {"start": segment.start, "end": segment.end, "text": segment.text}
             if word_timestamps:
