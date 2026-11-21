@@ -87,10 +87,19 @@ Two ways in: unzip the release archive, or build from a clone.
 
 ### Download the archive
 
-Releases carry a `LocalSTT-<version>-win64.zip` with the application, its runtime and
-the `large-v3-turbo` model already inside. Unzip it anywhere and run
-`start-localstt.vbs`: nothing to install, no Python, no build tools. Use the archive if
-you just want the thing to work.
+Releases carry two archives: `LocalSTT-<version>-win64.zip` with the application and
+its runtime, and `LocalSTT-model-large-v3-turbo.zip` with the speech model. They are
+separate because together they are over the 2 GB GitHub allows per file.
+
+1. Unzip `LocalSTT-<version>-win64.zip` anywhere.
+2. Unzip `LocalSTT-model-large-v3-turbo.zip` into that folder, so that
+   `models\ctranslate2\large-v3-turbo` sits next to `LocalSTT.exe`. The model does not
+   change between releases: when updating, keep the `models` folder instead of
+   downloading it again.
+3. Run `start-localstt.vbs`.
+
+Nothing to install, no Python, no build tools. Use the archives if you just want the
+thing to work.
 
 ### Build from source
 

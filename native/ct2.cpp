@@ -45,7 +45,7 @@ Ct2Backend::Ct2Backend(Config& c):p_(std::make_unique<Impl>(c)){}
 Ct2Backend::~Ct2Backend()=default;
 void Ct2Backend::load(){
     auto& p=*p_;auto cfg=p.cfg.snapshot();auto raw=cfg.value("native_ct2_model_path","");fs::path path=raw.empty()?executable_dir()/L"models/ctranslate2"/wide(cfg.value("model","large-v3-turbo")):fs::path(wide(raw));
-    if(!fs::exists(path/L"model.bin"))throw std::runtime_error("CTranslate2 model missing: "+utf8(path.wstring())+". Run native/setup.ps1.");
+    if(!fs::exists(path/L"model.bin"))throw std::runtime_error("CTranslate2 model missing: "+utf8(path.wstring())+". Unzip LocalSTT-model-"+utf8(path.filename().wstring())+".zip from the release into the LocalSTT folder, or run native/setup.ps1 in a clone.");
     bool cuda=cfg.value("device","cuda")=="cuda";auto device=cuda?ct::Device::CUDA:ct::Device::CPU;
     if(cuda&&ct::get_device_count(device)<1)throw std::runtime_error("CTranslate2 reports no CUDA devices; CPU fallback disabled");
     ct::ReplicaPoolConfig pool;pool.num_threads_per_replica=4;

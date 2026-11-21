@@ -1,22 +1,25 @@
 <#
 .SYNOPSIS
-    Builds the "download, unzip, run" archive: the native application, its runtime
-    and one model, with nothing to install.
+    Builds the "download, unzip, run" archives: the native application with its
+    runtime, and the model as a second archive that unzips into the same folder.
 
 .DESCRIPTION
     The result needs nothing on the target machine except an NVIDIA driver: no Python,
     no CUDA Toolkit, no Visual C++ redistributable (the MSVC runtime DLLs ship inside).
-    The archive holds what native\build.ps1 put into native-install\: LocalSTT.exe,
-    localstt-cli.exe, the CTranslate2, CUDA and cuDNN DLLs, the selected CTranslate2
-    model and the Silero voice activity model, plus the licenses, the files a user edits
-    (commands.json, dictionary.json, cleanup-prompt.txt) and the scripts that run it.
+    The application archive holds what native\build.ps1 put into native-install\:
+    LocalSTT.exe, localstt-cli.exe, the CTranslate2, CUDA and cuDNN DLLs and the Silero
+    voice activity model, plus the licenses, the files a user edits (commands.json,
+    dictionary.json, cleanup-prompt.txt) and the scripts that run it. The CTranslate2
+    model goes into LocalSTT-model-<model>.zip, whose models\ folder unzips into the
+    application folder.
+
+    The two are separate because together they are over the 2 GB GitHub allows per
+    release asset: the runtime DLLs are about 2.2 GB unpacked (cuBLAS and cuDNN most of
+    it) and the large-v3-turbo model 1.6 GB. The script checks each archive before you
+    find out by uploading.
 
     This is a maintainer's script, not a user's. Run it on the machine you release from,
-    then attach dist\LocalSTT-<version>-win64.zip to a GitHub release.
-
-    Expect roughly 3.8 GB unpacked: the runtime DLLs are about 2.2 GB (cuBLAS and cuDNN
-    most of it) and the large-v3-turbo model 1.6 GB. GitHub refuses release assets over
-    2 GB, which the script checks before you find out by uploading.
+    then attach both archives in dist\ to a GitHub release.
 
 .PARAMETER Version
     Goes into the file name. Defaults to __version__ in localstt\__init__.py, the same
@@ -122,25 +125,51 @@ foreach ($stray in @("config.json", "preflight.json", "logs")) {
 Write-Step "Compressing"
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$zip = Join-Path $dist "$name.zip"
-if (Test-Path $zip) { Remove-Item $zip -Force }
-[System.IO.Compression.ZipFile]::CreateFromDirectory(
-    $stage, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $true
+
+# The model leaves the staged application for an archive of its own. Its entries start
+# at models\, so unzipping it into the application folder puts the model where the
+# application looks for it.
+$modelName = "LocalSTT-model-$Model"
+$modelStage = Join-Path $dist $modelName
+$stagedModel = Join-Path $stage "models\ctranslate2\$Model"
+if (Test-Path $modelStage) { Remove-Item $modelStage -Recurse -Force }
+New-Item -ItemType Directory -Force -Path (Join-Path $modelStage "models\ctranslate2") | Out-Null
+Move-Item -LiteralPath $stagedModel -Destination (Join-Path $modelStage "models\ctranslate2\$Model")
+
+function New-Archive([string]$Source, [string]$Zip, [bool]$IncludeFolder) {
+    if (Test-Path $Zip) { Remove-Item $Zip -Force }
+    [System.IO.Compression.ZipFile]::CreateFromDirectory(
+        $Source, $Zip, [System.IO.Compression.CompressionLevel]::Optimal, $IncludeFolder
+    )
+    [pscustomobject]@{
+        Path     = $Zip
+        Size     = (Get-Item $Zip).Length / 1GB
+        Unpacked = (Get-ChildItem $Source -Recurse -File | Measure-Object Length -Sum).Sum / 1GB
+        Hash     = (Get-FileHash $Zip -Algorithm SHA256).Hash
+    }
+}
+$archives = @(
+    New-Archive $stage (Join-Path $dist "$name.zip") $true
+    New-Archive $modelStage (Join-Path $dist "$modelName.zip") $false
 )
 
-$size = (Get-Item $zip).Length / 1GB
-$unpacked = (Get-ChildItem $stage -Recurse -File | Measure-Object Length -Sum).Sum / 1GB
-$hash = (Get-FileHash $zip -Algorithm SHA256).Hash
-
-if (-not $KeepStaging) { Remove-Item $stage -Recurse -Force }
+if ($KeepStaging) {
+    # Back in place, so the staged folder can be tried as it is.
+    Move-Item -LiteralPath (Join-Path $modelStage "models\ctranslate2\$Model") -Destination $stagedModel
+} else {
+    Remove-Item $stage -Recurse -Force
+}
+Remove-Item $modelStage -Recurse -Force
 
 Write-Step "Done"
-Write-Host @"
-    $zip
-    zipped    $([math]::Round($size, 2)) GB
-    unpacked  $([math]::Round($unpacked, 2)) GB
-    sha256    $hash
+foreach ($archive in $archives) {
+    Write-Host @"
+    $($archive.Path)
+    zipped    $([math]::Round($archive.Size, 2)) GB
+    unpacked  $([math]::Round($archive.Unpacked, 2)) GB
+    sha256    $($archive.Hash)
 "@ -ForegroundColor Gray
-if ($size -ge 2) {
-    Write-Warn "GitHub refuses release assets over 2 GB. Split the archive or bundle a smaller -Model."
+    if ($archive.Size -ge 2) {
+        Write-Warn "GitHub refuses release assets over 2 GB: $(Split-Path -Leaf $archive.Path)."
+    }
 }
