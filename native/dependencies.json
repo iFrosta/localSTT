@@ -1,0 +1,926 @@
+{
+    "schema":  1,
+    "whisper_version":  "1.8.2",
+    "sources":  [
+                    {
+                        "path":  "vendor/nlohmann/json.hpp",
+                        "url":  "https://raw.githubusercontent.com/nlohmann/json/v3.11.2/single_include/nlohmann/json.hpp",
+                        "sha256":  "665FA14B8AF3837966949E8EB0052D583E2AC105D3438BABA9951785512CF921"
+                    },
+                    {
+                        "path":  "vendor/httplib.h",
+                        "url":  "https://raw.githubusercontent.com/yhirose/cpp-httplib/v0.20.0/httplib.h",
+                        "sha256":  "2831F48258D8E20EA88EA82C63F15014CED0A584CBDB1CD3BEA1A60B6FB971E5"
+                    },
+                    {
+                        "path":  "vendor/whisper/whisper.h",
+                        "url":  "https://raw.githubusercontent.com/ggml-org/whisper.cpp/v1.8.2/include/whisper.h",
+                        "sha256":  "0525B758571AB71C00DDD8EA2845F74AF7C62DFA5100C5586655F75BDC5EF4BE"
+                    },
+                    {
+                        "path":  "vendor/whisper/ggml.h",
+                        "url":  "https://raw.githubusercontent.com/ggml-org/whisper.cpp/v1.8.2/ggml/include/ggml.h",
+                        "sha256":  "8A75BCDEF50FF901C0B374668F06A6F005608FDEE86CCEC1B6B01650DB1FE31B"
+                    },
+                    {
+                        "path":  "vendor/whisper/ggml-alloc.h",
+                        "url":  "https://raw.githubusercontent.com/ggml-org/whisper.cpp/v1.8.2/ggml/include/ggml-alloc.h",
+                        "sha256":  "8344C5EB56CE9D0E0D45E1EF59846E0DCD0E4F84EB9BB68A6126252247BC0338"
+                    },
+                    {
+                        "path":  "vendor/whisper/ggml-backend.h",
+                        "url":  "https://raw.githubusercontent.com/ggml-org/whisper.cpp/v1.8.2/ggml/include/ggml-backend.h",
+                        "sha256":  "88D58B3B507477EACFC401B914B48AF8B2AD875705674B5304420523A92B9C0A"
+                    },
+                    {
+                        "path":  "vendor/whisper/ggml-cpu.h",
+                        "url":  "https://raw.githubusercontent.com/ggml-org/whisper.cpp/v1.8.2/ggml/include/ggml-cpu.h",
+                        "sha256":  "0BBA07CC8D4FB47BA9BD8CAFCDBD3738A041F88861039151E119C52970A1D8F2"
+                    },
+                    {
+                        "path":  "licenses/whisper-MIT.txt",
+                        "url":  "https://raw.githubusercontent.com/ggml-org/whisper.cpp/v1.8.2/LICENSE",
+                        "sha256":  "E562A2DDFAF8280537795AC5ECD34E3012B6582A147EF69BA6A6A5C08C84757D"
+                    },
+                    {
+                        "path":  "licenses/nlohmann-json-MIT.txt",
+                        "url":  "https://raw.githubusercontent.com/nlohmann/json/v3.11.2/LICENSE.MIT",
+                        "sha256":  "86B998C792894CCB911A1CB7994F7A9652894E7A094C0B5E45BE2F553F45CF14"
+                    },
+                    {
+                        "path":  "licenses/cpp-httplib-MIT.txt",
+                        "url":  "https://raw.githubusercontent.com/yhirose/cpp-httplib/v0.20.0/LICENSE",
+                        "sha256":  "4B45CBE16D7B71B89AE6127E26E0D90A029198CA5E958AD8E3D0B8BBED364D8B"
+                    },
+                    {
+                        "path":  "licenses/whisper-model-MIT.txt",
+                        "url":  "https://raw.githubusercontent.com/openai/whisper/v20250625/LICENSE",
+                        "sha256":  "B5D65A59060E68C4FF940E1EDDFA6F94B2D68FDF58ED7F4DD57721C997E35E9D"
+                    },
+                    {
+                        "path":  "licenses/silero-vad-MIT.txt",
+                        "url":  "https://raw.githubusercontent.com/snakers4/silero-vad/v5.1.2/LICENSE",
+                        "sha256":  "2E63E9A38B6E8FC0C7BC37CE174CACA1862870856C6DAF5697CFB785E925520B"
+                    },
+                    {
+                        "path":  "licenses/SDL2-zlib.txt",
+                        "url":  "https://raw.githubusercontent.com/libsdl-org/SDL/release-2.30.7/LICENSE.txt",
+                        "sha256":  "9B9E1764F06701BCF7CE21E942C682D5921BA0900C6FCA760321B1C8837A9662"
+                    },
+                    {
+                        "path":  "licenses/CUDA-12.4-EULA.html",
+                        "url":  "https://docs.nvidia.com/cuda/archive/12.4.0/eula/index.html",
+                        "sha256":  "182734E0CEE7C6217B911EF88FC92C4A1F487D1003C24DD9DAB1597A399FB7C5"
+                    },
+                    {
+                        "path":  "licenses/CTranslate2-MIT.txt",
+                        "url":  "https://raw.githubusercontent.com/OpenNMT/CTranslate2/v4.8.2/LICENSE",
+                        "sha256":  "54AA79D9FE3C09E67A16DCD95B9E88676405A6EC174EFDA31036983CF7672ECB"
+                    }
+                ],
+    "runtime_archive":  {
+                            "path":  "downloads/whisper-cuda.zip",
+                            "url":  "https://github.com/ggml-org/whisper.cpp/releases/download/v1.8.2/whisper-cublas-12.4.0-bin-x64.zip",
+                            "sha256":  "54A3C012E6C567E2E8BED874CDF49C55F018EC8D90BB5D5271568AA573291B2D"
+                        },
+    "runtime":  [
+                    {
+                        "path":  "runtime/Release/cublas64_12.dll",
+                        "sha256":  "E40202FE4223C1CD2D2DCE7BEEC59E1ED61C7801BD827309183BE9B50E358F4C"
+                    },
+                    {
+                        "path":  "runtime/Release/cublasLt64_12.dll",
+                        "sha256":  "2A896460BEF60ED57EF32B0875812F355A6984E671D638BB632F5E8C1D7A831F"
+                    },
+                    {
+                        "path":  "runtime/Release/cudart64_12.dll",
+                        "sha256":  "D28E42265DA7462162A54DA6B7A99EA4FA2CAF8139D862BB500DB875D0B32DFC"
+                    },
+                    {
+                        "path":  "runtime/Release/ggml-base.dll",
+                        "sha256":  "6137709A3381CCB916593C175030FC2092C24048CCC56716C1680E2BE266C555"
+                    },
+                    {
+                        "path":  "runtime/Release/ggml-cpu.dll",
+                        "sha256":  "72D9A96D134B38CEF41E93E7EBEA854FA2DA943730FA6D9D0A79A342975FEEB1"
+                    },
+                    {
+                        "path":  "runtime/Release/ggml-cuda.dll",
+                        "sha256":  "96C444E4EDE11B472AFBAB43558C377FF42A02895CD0A3191036144469519199"
+                    },
+                    {
+                        "path":  "runtime/Release/ggml.dll",
+                        "sha256":  "E200B88BB7B370F2077F6BAAC7340805DE00985FBEB52AF84B8FA6872B9E1744"
+                    },
+                    {
+                        "path":  "runtime/Release/nvblas64_12.dll",
+                        "sha256":  "E42A77405E6E4B1CC661DCFCDDEAD35EC62DCF59C6F9BE1A3B5FAB73D1F4C616"
+                    },
+                    {
+                        "path":  "runtime/Release/nvrtc-builtins64_124.dll",
+                        "sha256":  "79888DBA26C51475EA21FC7B47D2B9DD5B1FFAECC8E5EA22A49FA5F5A722EB43"
+                    },
+                    {
+                        "path":  "runtime/Release/nvrtc64_120_0.dll",
+                        "sha256":  "3AA3CD8AA10437E212760C0E1ED730807811EC3BC330216DBFDE4B26211D2243"
+                    },
+                    {
+                        "path":  "runtime/Release/SDL2.dll",
+                        "sha256":  "DE23DB1694A3C7A4A735E7ECD3D214B2023CC2267922C6C35D30C7FC7370D677"
+                    },
+                    {
+                        "path":  "runtime/Release/whisper.dll",
+                        "sha256":  "52A14FBC2E721480ACDE11490EF5AA7EDF97DDDFAC5CFC4333123A730F6CA467"
+                    },
+                    {
+                        "path":  "runtime/Release/quantize.exe",
+                        "sha256":  "21511FC9BBFACCEAE0E408DEAB77E0AB82A0BF31BE24E44C13B1C8928F927782"
+                    }
+                ],
+    "vad":  {
+                "path":  "models/ggml-silero-v5.1.2.bin",
+                "url":  "https://huggingface.co/ggml-org/whisper-vad/resolve/9ffd54a1e1ee413ddf265af9913beaf518d1639b/ggml-silero-v5.1.2.bin",
+                "sha256":  "29940D98D42B91FBD05CE489F3ECF7C72F0A42F027E4875919A28FB4C04EA2CF"
+            },
+    "models":  [
+                   {
+                       "name":  "ggml-large-v3-turbo-q8_0.bin",
+                       "path":  "models/ggml-large-v3-turbo-q8_0.bin",
+                       "url":  "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q8_0.bin",
+                       "sha256":  "317EB69C11673C9DE1E1F0D459B253999804EC71AC4C23C17ECF5FBE24E259A1"
+                   },
+                   {
+                       "name":  "ggml-large-v3-turbo.bin",
+                       "path":  "models/ggml-large-v3-turbo.bin",
+                       "url":  "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo.bin",
+                       "sha256":  "1FC70F774D38EB169993AC391EEA357EF47C88757EF72EE5943879B7E8E2BC69"
+                   },
+                   {
+                       "name":  "ggml-large-v3-turbo-q5_0.bin",
+                       "path":  "models/ggml-large-v3-turbo-q5_0.bin",
+                       "url":  "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q5_0.bin",
+                       "sha256":  "394221709CD5AD1F40C46E6031CA61BCE88931E6E088C188294C6D5A55FFA7E2"
+                   },
+                   {
+                       "name":  "ggml-large-v3.bin",
+                       "path":  "models/ggml-large-v3.bin",
+                       "url":  "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3.bin",
+                       "sha256":  "64D182B440B98D5203C4F9BD541544D84C605196C4F7B845DFA11FB23594D1E2"
+                   },
+                   {
+                       "name":  "ggml-large-v3-q5_0.bin",
+                       "path":  "models/ggml-large-v3-q5_0.bin",
+                       "url":  "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-q5_0.bin",
+                       "sha256":  "D75795ECFF3F83B5FAA89D1900604AD8C780ABD5739FAE406DE19F23ECD98AD1"
+                   },
+                   {
+                       "name":  "ggml-medium.bin",
+                       "path":  "models/ggml-medium.bin",
+                       "url":  "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-medium.bin",
+                       "sha256":  "6C14D5ADEE5F86394037B4E4E8B59F1673B6CEE10E3CF0B11BBDBEE79C156208"
+                   },
+                   {
+                       "name":  "ggml-medium-q8_0.bin",
+                       "path":  "models/ggml-medium-q8_0.bin",
+                       "url":  "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-medium-q8_0.bin",
+                       "sha256":  "42A1FFCBE4167D224232443396968DB4D02D4E8E87E213D3EE2E03095DEA6502"
+                   },
+                   {
+                       "name":  "ggml-medium-q5_0.bin",
+                       "path":  "models/ggml-medium-q5_0.bin",
+                       "url":  "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-medium-q5_0.bin",
+                       "sha256":  "19FEA4B380C3A618EC4723C3EEF2EB785FFBA0D0538CF43F8F235E7B3B34220F"
+                   },
+                   {
+                       "name":  "ggml-small.bin",
+                       "path":  "models/ggml-small.bin",
+                       "url":  "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small.bin",
+                       "sha256":  "1BE3A9B2063867B937E64E2EC7483364A79917E157FA98C5D94B5C1FFFEA987B"
+                   },
+                   {
+                       "name":  "ggml-small-q8_0.bin",
+                       "path":  "models/ggml-small-q8_0.bin",
+                       "url":  "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small-q8_0.bin",
+                       "sha256":  "49C8FB02B65E6049D5FA6C04F81F53B867B5EC9540406812C643F177317F779F"
+                   }
+               ],
+    "ctranslate2":  {
+                        "version":  "4.8.2",
+                        "source":  {
+                                       "path":  "downloads/ctranslate2-source.zip",
+                                       "url":  "https://github.com/OpenNMT/CTranslate2/archive/refs/tags/v4.8.2.zip",
+                                       "sha256":  "985ED99EE8B340D3E9A3CD36647648700674D8193E0132C89079F5C292695977"
+                                   },
+                        "headers":  [
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/allocator.h",
+                                            "sha256":  "EB4D3982C632D4D59C894C251C16C2C501CD0824A0067E71584B14806F8CB90F"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/batch_reader.h",
+                                            "sha256":  "18B191DB94097AB6EC627641C5AA9048BC7CFAD6D309F72D7E2982EA2825ADC1"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/bfloat16.h",
+                                            "sha256":  "916AF543A4A9447987E49C5D423AE2182A33A2EC552D98B1B493B704BED17EDC"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/buffered_translation_wrapper.h",
+                                            "sha256":  "98324A56B51DED6F073FF4606163647C3DFC88680BA1C9F70885AE05906661FD"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/decoding.h",
+                                            "sha256":  "28E715BD0D82C9DB8F323CD3F0E23682E79FBEFE7C2F99F54D7AEB99A9012F43"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/decoding_utils.h",
+                                            "sha256":  "3E06D0471F2119C9F8633B5005C56EA99537D2E2D59018F61789A0D52213D823"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/devices.h",
+                                            "sha256":  "D0E62731752E5DA3499AEF8145A61A2ADBDC32CC73DA00408CA966EC15C9CA06"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/encoder.h",
+                                            "sha256":  "AF2B87562F7764B4C3C2B4B973F70FD4C803B2700B4B35706B2EBBB3423D3240"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/encoding.h",
+                                            "sha256":  "035E0DD22C0444343FD67C0DC7A05639E1C8E3BF5B579598F052F531C9B57581"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/filesystem.h",
+                                            "sha256":  "B1F57B9297DBC6BB702D1763834236E8899952C459287AF1EA4F4D045987AFF5"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/generation.h",
+                                            "sha256":  "0AD1F72E2D35706EEF8AE13417CE28E4DE2BC4FE91E981B25FD5DD98B979AF27"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/generator.h",
+                                            "sha256":  "25B90A2C81885BA6A1E1DEF909F0CCB11EE63F706DC1CCB0B622FCC5C5708F7E"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/logging.h",
+                                            "sha256":  "2100DBE1389DCF39940CBAED56B528F536EF553EB9B4391179D90B5DA8567739"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/padder.h",
+                                            "sha256":  "4EB8306753A9832DC1B97DCE3733E1CD096ED4C18FB185543AF61E863173CAE9"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/primitives.h",
+                                            "sha256":  "7E43DCB0FF4A7276632913C4571B0E31AA295DEA11EC3E5DB46AABEBB994AD12"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/profiler.h",
+                                            "sha256":  "EF4284F20791BFBDDF4CC828F3AFD8D9B9D9D3F397A37CC99916C768BA264917"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/random.h",
+                                            "sha256":  "308921A948388CCAD09D1EC42EBF587E302210A5761571F17622E0AD3EFDABAD"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/replica_pool.h",
+                                            "sha256":  "496073F9D648A843CBE38BC27BECAB05866C5C49FC63F0D9699C09D930E869F2"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/sampling.h",
+                                            "sha256":  "C133C30329490274A6A4DE29ADFAD75F6B27D4B2D0BCFDEBBCDBCA30D2C0ABEE"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/scoring.h",
+                                            "sha256":  "1D03471A039C5D792D65C1F4663470B642E3613D068B857C6E79B0C2F45E208B"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/storage_view.h",
+                                            "sha256":  "0F36D7F935CDC5A98318722A098A6F6193C698966026410B3099485732248613"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/thread_pool.h",
+                                            "sha256":  "8A11C1257AFDA711E10A6489B8D16521110EC5732CB1798C89D4FE54C30EC9A1"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/translation.h",
+                                            "sha256":  "051A4709EB7BA27F0477BD7ACFD02E39EDF3F6D1EEEBBBBC97D7B99D02D00A5B"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/translator.h",
+                                            "sha256":  "448A1270D5E190BD4EE6C5B01DC41C378DCFD05D2817DDEF3134C15A091C9EA4"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/types.h",
+                                            "sha256":  "80FDA2A3736D8936B4829C5C8E44ED7CBC465A1ADE3808671037DDA6E81EF02E"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/utils.h",
+                                            "sha256":  "BC5FD5A3C703340B245BBB2C7CE7697E0002187B97DD3B09F916C7399BEE4A18"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/vocabulary.h",
+                                            "sha256":  "514235A50052D1A9850F33A87233A0BB36EFE50256C621B8295BA37942D3B468"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/vocabulary_map.h",
+                                            "sha256":  "7A894AC185AD8340F6A2B9DD140C7A640131E3869B2579EA380318F2FD2BE23E"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/layers/attention.h",
+                                            "sha256":  "F3D9FEF313B85FDD97F9A1E64714D75805DDEA80250BB76F4872150126F2D34A"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/layers/attention_layer.h",
+                                            "sha256":  "88621014512A079EFCA659DDF2FB61B4C3C22E7354663256E310109B89A18973"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/layers/common.h",
+                                            "sha256":  "0337BF74ED41C6D0C742C70BAFDB7F29CFEF5FC44EDE29E2B69B44B43A3B9DC3"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/layers/decoder.h",
+                                            "sha256":  "8AC459D3109E07818E88C924013955379FE8F6F48E10B4838C04F192143ECC70"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/layers/encoder.h",
+                                            "sha256":  "9CE34EB83E1248931F03FCC1DC778095C0E2084DE67C90C57D59B316B2A9FA66"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/layers/flash_attention.h",
+                                            "sha256":  "2F804210DC62CC3A6EE4096514D30439DB871507B1499B9F93661509324C6715"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/layers/layers.h",
+                                            "sha256":  "90966AE139FF9E6C3BF15EE8E68821C7E49B91E2C7ED68ACF81A6925EAF6B13D"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/layers/transformer.h",
+                                            "sha256":  "E521B7023638D877EEDB7E03ED83228210C31DCF5D59FDB94B7C76089CD73661"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/layers/wav2vec2.h",
+                                            "sha256":  "D4DA522535B0DFF8A39B252768ADDD203935A56F5517BE26F643B78BA61E1CB1"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/layers/wav2vec2bert.h",
+                                            "sha256":  "76660566144201AB1DD1D5F270B8DC7267BD39806011205F3D07ACE148799E1C"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/layers/whisper.h",
+                                            "sha256":  "D6F265B4C61F8425D98DBDC069496F2E71A0829411F263E8368D5883A4BFF76D"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/models/language_model.h",
+                                            "sha256":  "F35E5941ECABC73C9CAE274182426464402FF0C5B89FF1F6F2D8AD77C263C625"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/models/model.h",
+                                            "sha256":  "1E12B138057D619A6A7F87AD387CAD2016039903FFE59E5D9A897124C328647A"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/models/model_factory.h",
+                                            "sha256":  "8D184658945381DCC0E7327F53043FF3E8D478C71030639C1F9278FD45846453"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/models/model_reader.h",
+                                            "sha256":  "76C948F71CE4A0AEE278AAE38DD8F2D81AE56FB748AE2DB6FF194C27172A8F68"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/models/sequence_to_sequence.h",
+                                            "sha256":  "FB946F6D37DBAD2BE7FAF4224E2D5F7D28A5EB76AF940D9A5A10CE9A26CF95BB"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/models/transformer.h",
+                                            "sha256":  "3D734F4B4EC9F50ED121662A59DFBA17C120A16F48AA948818892C76E805245E"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/models/wav2vec2.h",
+                                            "sha256":  "A970CBAE39413006F28DDD5AF44AC9C068E738476E3B4077CD08633F46ECFDDA"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/models/wav2vec2bert.h",
+                                            "sha256":  "05634C30D52735AF5899D6DE46D3B34AE33268E646FF140396DEE8C5758C4193"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/models/whisper.h",
+                                            "sha256":  "EE3AE7A77C107FA8A6756DFA32340F3D4E1CC1D6E247786580D40DD810058312"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/activation.h",
+                                            "sha256":  "D2E6C71D736FB94377DB64EEBAE0C43291C612AFAAA1F5F86E4D0C7370C0DA57"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/add.h",
+                                            "sha256":  "DDE2095E5DB935560676AC87AFA8A340D2B4B4296431BE52A44418BAAB30E0B6"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/alibi_add.h",
+                                            "sha256":  "2AD200C85FA45124B5887361AD00F5A0B9B76A66BAB7D1587D78913B92FDD72C"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/bias_add.h",
+                                            "sha256":  "EEFFDB2B8A224D1137E633E337BA5222731EB5E1896544F7417EC3FF387F15C5"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/concat.h",
+                                            "sha256":  "6F70151ADBC9866FBCE92AE759047B6B05CF9A1B566CDD851371F5BB92CE296A"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/conv1d.h",
+                                            "sha256":  "8E45561D32114B4F297D1B6A470FCDBE6FE64D6EE661D0D64C2339028F6BF58B"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/cos.h",
+                                            "sha256":  "0CC164BDB34EBD6211A9CE50D59A3D2CD99DF5874900B16F537BDC09EC80B2CB"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/dequantize.h",
+                                            "sha256":  "C20E3562236992BA1AE5F736A8BB2B9456072A290421DC2A9A95E727DB2233D5"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/flash_attention.h",
+                                            "sha256":  "3764EEDF25E7474EC156630B868F1341938AAB87F1373A765ACA2F164F2FCB38"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/gather.h",
+                                            "sha256":  "9CF296741919E88AA961AE9A6763C44CFCCB12F27F1DEC855AE3813C65D95CF1"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/gelu.h",
+                                            "sha256":  "4F9930CAE91CAE767E0B8A9CCC1D0DDE840B0B22633E2111DAFC1208BE9D9EAE"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/gemm.h",
+                                            "sha256":  "74608B4637528EF49AF7C59426410865ABE5EA8967CCA6C1BD2874CC5EAB651F"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/gumbel_max.h",
+                                            "sha256":  "F4E83D756F32FCEBAE6E44C373DD8915D4EAA77BAA4189650709FD9B9FEFB6D9"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/identity.h",
+                                            "sha256":  "1CD6A3E43D9AD1A9B1C593E021E8996D9938E3702084AA4C6E49A76BF000ADE6"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/layer_norm.h",
+                                            "sha256":  "CBBC1E72173A803FD557591F0CA5EECFBD7576293305EBBD5A3548B4D80847C5"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/log.h",
+                                            "sha256":  "6B0FBD55B808A5E1477692EE2EDD059B606773728582739334DDB3A9E2A7EC5D"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/matmul.h",
+                                            "sha256":  "902953C4DCFA78302BC8FD4122BD5A138F957EE52D20B763F2B55C720EF38696"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/mean.h",
+                                            "sha256":  "199CFFD08C3E2A7B6F87821A241D730E53561BEEA51E3F4136CE25608B4D311A"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/median_filter.h",
+                                            "sha256":  "995EB633A43D1036637462872EFAB253990518E99B548845320DFB2B3C9586C4"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/min_max.h",
+                                            "sha256":  "B0FFDE868F330D134FFE9928515FCB23A69C4B265EC0714F0B5EBA92D8821DC0"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/mul.h",
+                                            "sha256":  "40200AC9947BD3BD5C7AFF3DC843E8C76319CE88A4C8F4277FCAAE19BEA87FAB"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/multinomial.h",
+                                            "sha256":  "F5722FA184A358E3D0C584EE71989E3A58E706F611BD1710576CB6896076A147"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/nccl_ops.h",
+                                            "sha256":  "9F5E06F1D4DB0E358D771AA73285A8F068B9B02770754CCA7FC0845C3A9A902D"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/op.h",
+                                            "sha256":  "8ED29AE08D16DCBBAD5ED2E46DE5671480B6E659F2D959625FD1A9E908B0622B"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/ops.h",
+                                            "sha256":  "136E8052BE024C1B2ECCAE4184ABDB134518647AA670C1E2B955DA102C8FC8C8"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/quantize.h",
+                                            "sha256":  "575BBBD6D42CF7F558D08E9A76238D3C515BFC64188FD489A624875AFF8BC7A4"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/relu.h",
+                                            "sha256":  "8BB8568493EDCDA8C4BE81AC37B1E9BB565CF8D7BB803058B46396E0EDF79DA0"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/rms_norm.h",
+                                            "sha256":  "08FD2631BCDBDA73A47088BD08B3E3E8E82A90449B3E249FB97B04268DC3B4F8"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/rotary.h",
+                                            "sha256":  "D135717A72BD7320673527075DC13F83779930DF1799A024771D984416B25C6E"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/sigmoid.h",
+                                            "sha256":  "997F63FD0F50C85E24ECF6D653A3E1A9DA0BD73D94AD2CECA195CE12EDEF56FC"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/sin.h",
+                                            "sha256":  "3DF60E97F7D135601F88DD3825FF0452549C2A7DF4FC73865A1ECD23EDA790AF"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/slide.h",
+                                            "sha256":  "D8B648D04FA68B7FE1750E8D3922D3324799FD12EE37085A4622C257E29A6402"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/softmax.h",
+                                            "sha256":  "B6D6A3278D32F2CE6145D69A0FDF0EB61B6D971ED49451832204E34D629D2412"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/split.h",
+                                            "sha256":  "34D9141D37C1109D68CF81E2655CF6EB97035F4512D6359DABB16A289741452B"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/squeeze.h",
+                                            "sha256":  "0453EFA29F013C8D3B98C130493DDC5595D63C6D579365716BE571827E72D9C0"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/sub.h",
+                                            "sha256":  "041033542FB635C4D91B88E350171A98E0087080EAF9941B1F625D0C0756CDB5"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/sum.h",
+                                            "sha256":  "B8DC087D039DD0C42999959C202C0B249A523AB99D75B08FFD412340D2508B8F"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/swish.h",
+                                            "sha256":  "74EFDF88153C3B73C726251D28298964453330FDF2E1745128D61DA788F2E66E"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/tanh.h",
+                                            "sha256":  "8C6DAAADB3EE96F36C1AAE5CAFE89B28D4D106C5E8CF8B2835BF383028BA7934"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/tile.h",
+                                            "sha256":  "05DA08BE345DFCEF5B764889E5A2B79B30CF375B6D6A653B90A734F6C47D4D5A"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/topk.h",
+                                            "sha256":  "E1E032AEC83ECB9CADA04B40C8DAD574CF90709F73ADBB926738CD073900CA44"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/topp_mask.h",
+                                            "sha256":  "0A95452F0DFBC3A923C5B1BCA2040F1C2CEA810D3B5C9C78BE8164B3A6957860"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/transpose.h",
+                                            "sha256":  "4506BCA19FFB2204261CEDB5B2F5A4C3BC6497D0E192ADB992049DF427294743"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/unsqueeze.h",
+                                            "sha256":  "6C2081C4B4411BBD09E6A344779984DFE1D2411DF55DCE447816F84563E9E61B"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/awq/dequantize_awq.h",
+                                            "sha256":  "85BB01A56F87553E4475E41BC8495D02060CBAC9AF265446A84ADD6188BCC0D7"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/awq/gemm.h",
+                                            "sha256":  "0F7172FC05F20C49226220FA7CFA971968D628790A694C62F3018DB7FD6EEED9"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/awq/gemv.h",
+                                            "sha256":  "E34CE528B4EDA37BDB7C2D6137E01DDF3A689D47F348646E3435B5002E6737C5"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/flash-attention/alibi.h",
+                                            "sha256":  "04B6A655480162FA7A067E32C1F824B8C7AD94CACB6665ECEB933FB3E496238A"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/flash-attention/block_info.h",
+                                            "sha256":  "DC4173A0B55FADFB7F386FB8F8B5C2722C3D425B28E034756C312CE84D72F413"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/flash-attention/flash.h",
+                                            "sha256":  "B276445EF706AADFF38AD11794236B27B22DA7022CA3D69F974CB53122C6E984"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/flash-attention/flash_fwd_kernel.h",
+                                            "sha256":  "BD01F8E5003A69C766BE9ED06D20A62DCA61DA4BB6894A842F4333A025C494A9"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/flash-attention/flash_fwd_launch_template.h",
+                                            "sha256":  "61B60B428D3846B99A7CB0564DEA72E5BB41640A531408BE911A0DD36416DA0E"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/flash-attention/kernel_traits.h",
+                                            "sha256":  "E0812FFFE2CEC2904AB7D80CC9C4673BC8A7F9C466F8078AEFEDDCCFE960E3F7"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/flash-attention/mask.h",
+                                            "sha256":  "A5BA3F2B8EA12E659BD7D3C602D32B99B0F1572E44F8326868C609839AD3505D"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/flash-attention/rotary.h",
+                                            "sha256":  "3BF75A787D85B7EA5768A03A3D8B59D2ACC7A519C7CC314B883191E218B67A53"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/flash-attention/softmax.h",
+                                            "sha256":  "D2AFBED701FA6ED910732BF7296EB2755BFF07C5F590862B111578A8DA87CC78"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/flash-attention/static_switch.h",
+                                            "sha256":  "0D7AD441A1C3FE872958D331391FE0AA2C6492783B6E38ACEAD11BE0E3681EEC"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/ctranslate2/ops/flash-attention/utils.h",
+                                            "sha256":  "6F4FFDECF2ED14A881020407409820EE5D54676D8F663D11A0C238865BC9ABA0"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/half_float/half.hpp",
+                                            "sha256":  "8F37FBC82D45C141E3C068C83893E7FC2B3696B8F4DBB863FF8A61AB779ABF4B"
+                                        },
+                                        {
+                                            "path":  "vendor/ctranslate2/include/nlohmann/json.hpp",
+                                            "sha256":  "665FA14B8AF3837966949E8EB0052D583E2AC105D3438BABA9951785512CF921"
+                                        }
+                                    ],
+                        "packages":  [
+                                         {
+                                             "name":  "ctranslate2",
+                                             "path":  "downloads/ctranslate2-4.8.2.zip",
+                                             "url":  "https://files.pythonhosted.org/packages/4e/23/e3b5322ff7368fcbed181ea4c209149416e7940b5b04971d5ee4084afe1a/ctranslate2-4.8.2-cp312-cp312-win_amd64.whl",
+                                             "sha256":  "D94421D565D0DE61C032998F737A18942B0F2BEF40C0424B1846EC6F67300105",
+                                             "files":  [
+                                                           {
+                                                               "entry":  "ctranslate2/ctranslate2.dll",
+                                                               "path":  "runtime-ct2/ctranslate2.dll",
+                                                               "sha256":  "34FF1EEEFEF2330F8ABE777AE12B2238718E04503AD6E3BC9B6C9CB5BE9FD274"
+                                                           },
+                                                           {
+                                                               "entry":  "ctranslate2/libiomp5md.dll",
+                                                               "path":  "runtime-ct2/libiomp5md.dll",
+                                                               "sha256":  "982233366B0AFCDA1E0F55A0B134097E35B779613F54DDB69E685E6CD06B755F"
+                                                           }
+                                                       ]
+                                         },
+                                         {
+                                             "name":  "nvidia_cublas_cu12",
+                                             "path":  "downloads/nvidia_cublas_cu12-12.9.2.10.zip",
+                                             "url":  "https://files.pythonhosted.org/packages/20/e2/fc9a0e985249d873150276d5afb02e39a66817fedbf1a385724393e505ed/nvidia_cublas_cu12-12.9.2.10-py3-none-win_amd64.whl",
+                                             "sha256":  "623F43027D40D44CEADF0043F002BD25CF353E8F13CE90B9A87057019F560661",
+                                             "files":  [
+                                                           {
+                                                               "entry":  "nvidia/cublas/bin/cublas64_12.dll",
+                                                               "path":  "runtime-ct2/cublas64_12.dll",
+                                                               "sha256":  "52CE5BA0EC5327D39BE6021F0F9362D2ED4D64D7206F9B5AFC06398D827B8E82"
+                                                           },
+                                                           {
+                                                               "entry":  "nvidia/cublas/bin/cublasLt64_12.dll",
+                                                               "path":  "runtime-ct2/cublasLt64_12.dll",
+                                                               "sha256":  "71705A7CF0923F4AB034D0D2620BBFC989FF669AC3D79F868B7A7C597CA559C5"
+                                                           },
+                                                           {
+                                                               "entry":  "nvidia/cublas/bin/nvblas64_12.dll",
+                                                               "path":  "runtime-ct2/nvblas64_12.dll",
+                                                               "sha256":  "F54AC264BECDB8AC866CBC0CCE74F1DFE0E0C1F6E60A0629F222490D210302CD"
+                                                           },
+                                                           {
+                                                               "entry":  "nvidia_cublas_cu12-12.9.2.10.dist-info/licenses/License.txt",
+                                                               "path":  "licenses/nvidia_cublas_cu12-12.9.2.10.txt",
+                                                               "sha256":  "AD6F5853FBA0CA0D159D0F58D49AE49830C2F8C93F7A92648B9CE90ADB4C6CCD"
+                                                           }
+                                                       ]
+                                         },
+                                         {
+                                             "name":  "nvidia_cudnn_cu12",
+                                             "path":  "downloads/nvidia_cudnn_cu12-9.25.1.1.zip",
+                                             "url":  "https://files.pythonhosted.org/packages/0b/ee/b5699f1960e358ec995bb72f71c2ec06c550fd0c8280525796d6646c0299/nvidia_cudnn_cu12-9.25.1.1-py3-none-win_amd64.whl",
+                                             "sha256":  "DEBB5F5901AE6071F34D0A2B256ACECC33DC3277F1FD5A11F8249F921DB8A40D",
+                                             "files":  [
+                                                           {
+                                                               "entry":  "nvidia/cudnn/bin/cudnn64_9.dll",
+                                                               "path":  "runtime-ct2/cudnn64_9.dll",
+                                                               "sha256":  "2EA14732F39B7F0D571DE6FD14CB7C0C08652C6633D673AD9D179743C8083CD3"
+                                                           },
+                                                           {
+                                                               "entry":  "nvidia/cudnn/bin/cudnn_adv64_9.dll",
+                                                               "path":  "runtime-ct2/cudnn_adv64_9.dll",
+                                                               "sha256":  "04BE9F67C2F92C3172B065EA68FA8B6271BB13D31264AC225FA9751F7D6D9484"
+                                                           },
+                                                           {
+                                                               "entry":  "nvidia/cudnn/bin/cudnn_cnn64_9.dll",
+                                                               "path":  "runtime-ct2/cudnn_cnn64_9.dll",
+                                                               "sha256":  "6FFE5484B61D94AB42EBC7B5737FA0EE3E3C2DD043825966253118FE2456A2D1"
+                                                           },
+                                                           {
+                                                               "entry":  "nvidia/cudnn/bin/cudnn_engines_precompiled64_9.dll",
+                                                               "path":  "runtime-ct2/cudnn_engines_precompiled64_9.dll",
+                                                               "sha256":  "58093341A7474968BE624DE49DD171772BAC6C1BA16C6E6ACFD5A1EDC406DB66"
+                                                           },
+                                                           {
+                                                               "entry":  "nvidia/cudnn/bin/cudnn_engines_runtime_compiled64_9.dll",
+                                                               "path":  "runtime-ct2/cudnn_engines_runtime_compiled64_9.dll",
+                                                               "sha256":  "52D244CCD54A98C6F372FBF773FC592EEA0D0A85D16EA7EEA1FB7F9BFD71F0E2"
+                                                           },
+                                                           {
+                                                               "entry":  "nvidia/cudnn/bin/cudnn_engines_tensor_ir64_9.dll",
+                                                               "path":  "runtime-ct2/cudnn_engines_tensor_ir64_9.dll",
+                                                               "sha256":  "27002DAE30705F0F310B05E492C72F197E1D00E45DC735682412C7E6E274EF41"
+                                                           },
+                                                           {
+                                                               "entry":  "nvidia/cudnn/bin/cudnn_ext64_9.dll",
+                                                               "path":  "runtime-ct2/cudnn_ext64_9.dll",
+                                                               "sha256":  "F82AD629D2299AEACD044B9D5E265EA163BBCEB753E1409BB34BA27868BD844F"
+                                                           },
+                                                           {
+                                                               "entry":  "nvidia/cudnn/bin/cudnn_graph64_9.dll",
+                                                               "path":  "runtime-ct2/cudnn_graph64_9.dll",
+                                                               "sha256":  "3C9FC4D73C41E66B93A8FC9C56536579AC36C1E87937728F3F1A24B4615202F4"
+                                                           },
+                                                           {
+                                                               "entry":  "nvidia/cudnn/bin/cudnn_heuristic64_9.dll",
+                                                               "path":  "runtime-ct2/cudnn_heuristic64_9.dll",
+                                                               "sha256":  "EDDD4556DA1292BC329399ACEABE327B5B9E965F19CBFCAFD6C60FBD9E566346"
+                                                           },
+                                                           {
+                                                               "entry":  "nvidia/cudnn/bin/cudnn_ops64_9.dll",
+                                                               "path":  "runtime-ct2/cudnn_ops64_9.dll",
+                                                               "sha256":  "C390E070B0AC214FA1AE0A40241776A291F90E5F07D46899F2D15FCEC831A404"
+                                                           },
+                                                           {
+                                                               "entry":  "nvidia_cudnn_cu12-9.25.1.1.dist-info/licenses/License.txt",
+                                                               "path":  "licenses/nvidia_cudnn_cu12-9.25.1.1.txt",
+                                                               "sha256":  "49CF79BDB35734B52FE6203013B3BD759F81E998CD32AA2C65C51DB9A88C61D2"
+                                                           }
+                                                       ]
+                                         },
+                                         {
+                                             "name":  "nvidia_cuda_nvrtc_cu12",
+                                             "path":  "downloads/nvidia_cuda_nvrtc_cu12-12.9.86.zip",
+                                             "url":  "https://files.pythonhosted.org/packages/52/de/823919be3b9d0ccbf1f784035423c5f18f4267fb0123558d58b813c6ec86/nvidia_cuda_nvrtc_cu12-12.9.86-py3-none-win_amd64.whl",
+                                             "sha256":  "72972EBDCF504D69462D3BCD67E7B81EDD25D0FB85A2C46D3EA3517666636349",
+                                             "files":  [
+                                                           {
+                                                               "entry":  "nvidia/cuda_nvrtc/bin/nvrtc-builtins64_129.dll",
+                                                               "path":  "runtime-ct2/nvrtc-builtins64_129.dll",
+                                                               "sha256":  "C405226B0B394ED8BDC593BB1419B94A989F93248ED2873E8F2E0E27C1688CA1"
+                                                           },
+                                                           {
+                                                               "entry":  "nvidia/cuda_nvrtc/bin/nvrtc64_120_0.dll",
+                                                               "path":  "runtime-ct2/nvrtc64_120_0.dll",
+                                                               "sha256":  "0CC63349FEDFFEEC1660B30955E8028B6E4E4C26CF1E41C56DC4569FD5ECA82C"
+                                                           },
+                                                           {
+                                                               "entry":  "nvidia_cuda_nvrtc_cu12-12.9.86.dist-info/licenses/License.txt",
+                                                               "path":  "licenses/nvidia_cuda_nvrtc_cu12-12.9.86.txt",
+                                                               "sha256":  "AD6F5853FBA0CA0D159D0F58D49AE49830C2F8C93F7A92648B9CE90ADB4C6CCD"
+                                                           },
+                                                           {
+                                                               "entry":  "nvidia/cuda_nvrtc/bin/nvrtc64_120_0.alt.dll",
+                                                               "path":  "runtime-ct2/nvrtc64_120_0.alt.dll",
+                                                               "sha256":  "AC56A4D3B5A99F294523ABEC28B8F648B96324A9277622A450EC20DDB9E2C47D"
+                                                           }
+                                                       ]
+                                         }
+                                     ],
+                        "models":  [
+                                       {
+                                           "name":  "large-v3-turbo",
+                                           "repo":  "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+                                           "revision":  "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+                                           "files":  [
+                                                         {
+                                                             "name":  "config.json",
+                                                             "path":  "models/ctranslate2/large-v3-turbo/config.json",
+                                                             "url":  "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/config.json",
+                                                             "sha256":  "B0253EA6C0D3BEA6B1E19E91A02ACFD3B53F4467362EFCB5A3E6B16C9B3A9B7E"
+                                                         },
+                                                         {
+                                                             "name":  "model.bin",
+                                                             "path":  "models/ctranslate2/large-v3-turbo/model.bin",
+                                                             "url":  "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/model.bin",
+                                                             "sha256":  "E76620F83D5F5B69EFD3D87E3DC180C1BD21DF9FBEBACFD4335E5E1EFCC018DA"
+                                                         },
+                                                         {
+                                                             "name":  "preprocessor_config.json",
+                                                             "path":  "models/ctranslate2/large-v3-turbo/preprocessor_config.json",
+                                                             "url":  "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/preprocessor_config.json",
+                                                             "sha256":  "7CCC62C6F2765AF1F3B46C00C9B5894426835A05021C8B9C01EECB6DFB542711"
+                                                         },
+                                                         {
+                                                             "name":  "tokenizer.json",
+                                                             "path":  "models/ctranslate2/large-v3-turbo/tokenizer.json",
+                                                             "url":  "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/tokenizer.json",
+                                                             "sha256":  "297B13372AC43916285644FB9687ADD3CC62EE2A1ADB60DA3DC25CC94C1871FD"
+                                                         },
+                                                         {
+                                                             "name":  "vocabulary.json",
+                                                             "path":  "models/ctranslate2/large-v3-turbo/vocabulary.json",
+                                                             "url":  "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/vocabulary.json",
+                                                             "sha256":  "C69260F2AB26D659B7C398F9A2B2B48ED0DF16C3B47D7326782FD9CBA71690C1"
+                                                         }
+                                                     ]
+                                       },
+                                       {
+                                           "name":  "large-v3",
+                                           "repo":  "Systran/faster-whisper-large-v3",
+                                           "revision":  "edaa852ec7e145841d8ffdb056a99866b5f0a478",
+                                           "files":  [
+                                                         {
+                                                             "name":  "config.json",
+                                                             "path":  "models/ctranslate2/large-v3/config.json",
+                                                             "url":  "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/edaa852ec7e145841d8ffdb056a99866b5f0a478/config.json",
+                                                             "sha256":  "A9306624F5EC14270A014B647E5C316B6E03A662C369758D1B90697A7B0655B9"
+                                                         },
+                                                         {
+                                                             "name":  "model.bin",
+                                                             "path":  "models/ctranslate2/large-v3/model.bin",
+                                                             "url":  "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/edaa852ec7e145841d8ffdb056a99866b5f0a478/model.bin",
+                                                             "sha256":  "69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1"
+                                                         },
+                                                         {
+                                                             "name":  "preprocessor_config.json",
+                                                             "path":  "models/ctranslate2/large-v3/preprocessor_config.json",
+                                                             "url":  "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/edaa852ec7e145841d8ffdb056a99866b5f0a478/preprocessor_config.json",
+                                                             "sha256":  "7CCC62C6F2765AF1F3B46C00C9B5894426835A05021C8B9C01EECB6DFB542711"
+                                                         },
+                                                         {
+                                                             "name":  "tokenizer.json",
+                                                             "path":  "models/ctranslate2/large-v3/tokenizer.json",
+                                                             "url":  "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/edaa852ec7e145841d8ffdb056a99866b5f0a478/tokenizer.json",
+                                                             "sha256":  "6D8CBD7CD0D8D5815E478DAC67B85A26BBE77C1F5E0C6D76D1CE2ABC0E5F21CA"
+                                                         },
+                                                         {
+                                                             "name":  "vocabulary.json",
+                                                             "path":  "models/ctranslate2/large-v3/vocabulary.json",
+                                                             "url":  "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/edaa852ec7e145841d8ffdb056a99866b5f0a478/vocabulary.json",
+                                                             "sha256":  "C69260F2AB26D659B7C398F9A2B2B48ED0DF16C3B47D7326782FD9CBA71690C1"
+                                                         }
+                                                     ]
+                                       },
+                                       {
+                                           "name":  "medium",
+                                           "repo":  "Systran/faster-whisper-medium",
+                                           "revision":  "08e178d48790749d25932bbc082711ddcfdfbc4f",
+                                           "files":  [
+                                                         {
+                                                             "name":  "config.json",
+                                                             "path":  "models/ctranslate2/medium/config.json",
+                                                             "url":  "https://huggingface.co/Systran/faster-whisper-medium/resolve/08e178d48790749d25932bbc082711ddcfdfbc4f/config.json",
+                                                             "sha256":  "3622A2DDC41EC0E0FD4E68C13C6830F03B90C38D89AAAD184DE02C8C642CF807"
+                                                         },
+                                                         {
+                                                             "name":  "model.bin",
+                                                             "path":  "models/ctranslate2/medium/model.bin",
+                                                             "url":  "https://huggingface.co/Systran/faster-whisper-medium/resolve/08e178d48790749d25932bbc082711ddcfdfbc4f/model.bin",
+                                                             "sha256":  "9b45e1009dcc4ab601eff815b61d80e60ce3fd8c74c1a14f4a282258286b51ae"
+                                                         },
+                                                         {
+                                                             "name":  "tokenizer.json",
+                                                             "path":  "models/ctranslate2/medium/tokenizer.json",
+                                                             "url":  "https://huggingface.co/Systran/faster-whisper-medium/resolve/08e178d48790749d25932bbc082711ddcfdfbc4f/tokenizer.json",
+                                                             "sha256":  "FB7B63191E9BB045082C79FD742A3106A12C99513AB30DF4A0D47FA6CB6FD0AB"
+                                                         },
+                                                         {
+                                                             "name":  "vocabulary.txt",
+                                                             "path":  "models/ctranslate2/medium/vocabulary.txt",
+                                                             "url":  "https://huggingface.co/Systran/faster-whisper-medium/resolve/08e178d48790749d25932bbc082711ddcfdfbc4f/vocabulary.txt",
+                                                             "sha256":  "34CE3FE1C5041027B3F8D42912270993F986DBC4BB34CF27F951E34A1E453913"
+                                                         }
+                                                     ]
+                                       },
+                                       {
+                                           "name":  "small",
+                                           "repo":  "Systran/faster-whisper-small",
+                                           "revision":  "536b0662742c02347bc0e980a01041f333bce120",
+                                           "files":  [
+                                                         {
+                                                             "name":  "config.json",
+                                                             "path":  "models/ctranslate2/small/config.json",
+                                                             "url":  "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/config.json",
+                                                             "sha256":  "B55496AC7940A7AE47D2C01EAB40EDFD8701FEEC1229D9CCE3B40014383FB828"
+                                                         },
+                                                         {
+                                                             "name":  "model.bin",
+                                                             "path":  "models/ctranslate2/small/model.bin",
+                                                             "url":  "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/model.bin",
+                                                             "sha256":  "3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671"
+                                                         },
+                                                         {
+                                                             "name":  "tokenizer.json",
+                                                             "path":  "models/ctranslate2/small/tokenizer.json",
+                                                             "url":  "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/tokenizer.json",
+                                                             "sha256":  "FB7B63191E9BB045082C79FD742A3106A12C99513AB30DF4A0D47FA6CB6FD0AB"
+                                                         },
+                                                         {
+                                                             "name":  "vocabulary.txt",
+                                                             "path":  "models/ctranslate2/small/vocabulary.txt",
+                                                             "url":  "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/vocabulary.txt",
+                                                             "sha256":  "34CE3FE1C5041027B3F8D42912270993F986DBC4BB34CF27F951E34A1E453913"
+                                                         }
+                                                     ]
+                                       }
+                                   ]
+                    }
+}

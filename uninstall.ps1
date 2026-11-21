@@ -3,14 +3,17 @@
     Removes what install.ps1 created. The folder itself is left alone.
 
 .DESCRIPTION
-    Stops the app, removes the autostart shortcut and deletes the virtual environment.
-    Settings, history and logs in %APPDATA%\LocalSTT are kept unless -AppData is given,
-    and the downloaded Whisper models in %USERPROFILE%\.cache\huggingface are never
-    touched -- other tools use them too.
+    Stops the app, removes the autostart shortcut and the notification identity in the
+    registry. In a source checkout it also offers to delete the build output and the
+    downloaded dependencies (several GB: CUDA and cuDNN libraries, the models). An
+    installed copy or an unpacked release archive is deleted by deleting its folder.
+
+    Settings, history and logs in %APPDATA%\LocalSTT are kept unless -AppData is given.
 
 .PARAMETER AppData
-    Also delete %APPDATA%\LocalSTT: config.json, the dictation history, the logs and
-    the self-test result.
+    Also delete %APPDATA%\LocalSTT: config.json, the dictation history, the logs, the
+    self-test result and any edited copies of commands.json, dictionary.json and
+    cleanup-prompt.txt.
 
 .PARAMETER Force
     Do not ask before deleting.
@@ -46,9 +49,22 @@ if (Test-Path $appId) {
     "Removed the notification identity from the registry."
 }
 
+# Only a source checkout has these. The downloads are verified by hash, so deleting
+# them costs a download on the next build and nothing else.
+$build = @("native-install", "build-native") | ForEach-Object { Join-Path $root $_ } | Where-Object { Test-Path $_ }
+if ($build -and (Confirm-Step "Delete the build output ($($build -join ', '))?")) {
+    $build | ForEach-Object { Remove-Item $_ -Recurse -Force; "Removed $_" }
+}
+$downloads = @("downloads", "vendor", "runtime", "runtime-ct2", "models") |
+    ForEach-Object { Join-Path $root "native\$_" } | Where-Object { Test-Path $_ }
+if ($downloads -and (Confirm-Step "Delete the downloaded dependencies and models in $(Join-Path $root 'native')?")) {
+    $downloads | ForEach-Object { Remove-Item $_ -Recurse -Force; "Removed $_" }
+}
+
+# The Python rollback's environment, if one was ever created here.
 $venv = Join-Path $root ".venv"
 if (Test-Path $venv) {
-    if (Confirm-Step "Delete the virtual environment at $venv?") {
+    if (Confirm-Step "Delete the Python virtual environment at $venv?") {
         Remove-Item $venv -Recurse -Force
         "Removed $venv"
     }
@@ -65,7 +81,5 @@ if ($AppData) {
 }
 
 ""
-"The folder itself and the downloaded models were left in place."
-"  This folder:  $root"
-"  Models:       $env:USERPROFILE\.cache\huggingface"
-"Delete either by hand. The model cache is shared with other tools, so check first."
+"The folder itself was left in place: $root"
+"Delete it by hand once nothing in it is needed."

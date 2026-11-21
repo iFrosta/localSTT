@@ -1,47 +1,48 @@
 <#
 .SYNOPSIS
-    Builds the "download, unzip, run" archive: the application, a Python and every
-    dependency already installed into it.
+    Builds the "download, unzip, run" archives: the native application with its
+    runtime, and the model as a second archive that unzips into the same folder.
 
 .DESCRIPTION
-    The result needs nothing on the target machine except an NVIDIA driver. There is no
-    Python to install, no pip to run and no virtual environment -- the interpreter lives
-    in python\ inside the folder and the launchers prefer it when there is no .venv.
+    The result needs nothing on the target machine except an NVIDIA driver: no Python,
+    no CUDA Toolkit, no Visual C++ redistributable (the MSVC runtime DLLs ship inside).
+    The application archive holds what native\build.ps1 put into native-install\:
+    LocalSTT.exe, localstt-cli.exe, the CTranslate2, CUDA and cuDNN DLLs and the Silero
+    voice activity model, plus the licenses, the files a user edits (commands.json,
+    dictionary.json, cleanup-prompt.txt) and the scripts that run it. The CTranslate2
+    model goes into LocalSTT-model-<model>.zip, whose models\ folder unzips into the
+    application folder.
+
+    The two are separate because together they are over the 2 GB GitHub allows per
+    release asset: the runtime DLLs are about 2.2 GB unpacked (cuBLAS and cuDNN most of
+    it) and the large-v3-turbo model 1.6 GB. The script checks each archive before you
+    find out by uploading.
 
     This is a maintainer's script, not a user's. Run it on the machine you release from,
-    then attach dist\LocalSTT-<version>-win64.zip to a GitHub release.
-
-    Expect roughly 2.5 GB unpacked and 1.5 GB zipped: the cuBLAS and cuDNN wheels alone
-    are 1.3 GB. -SkipCuda builds a ~350 MB archive for people who already have a CUDA 12
-    runtime on the search path, which is a much smaller audience than it sounds.
+    then attach both archives in dist\ to a GitHub release.
 
 .PARAMETER Version
-    Goes into the file name. Defaults to the current git tag, else the date.
+    Goes into the file name. Defaults to __version__ in localstt\__init__.py, the same
+    number the application reports and the update check compares.
 
-.PARAMETER Python
-    The interpreter to copy. Defaults to the newest suitable one found; it must be a real
-    installation, not a virtual environment (the script resolves it either way).
+.PARAMETER Model
+    The CTranslate2 model to bundle.
 
-.PARAMETER SkipCuda
-    Leave the NVIDIA wheels out. The archive is named -nocuda so both can sit on the
-    same release.
-
-.PARAMETER Both
-    Build both archives, one after the other. The second run reuses what pip already
-    downloaded, so it costs minutes rather than another gigabyte.
+.PARAMETER SkipBuild
+    Package the existing native-install\ instead of running native\build.ps1 first.
 
 .PARAMETER KeepStaging
     Do not delete the unpacked folder after zipping it, so it can be tried in place.
 
 .EXAMPLE
-    .\build-release.ps1 -Version 1.0.0 -Both
+    .\build-release.ps1
 #>
 [CmdletBinding()]
 param(
     [string]$Version,
-    [string]$Python,
-    [switch]$SkipCuda,
-    [switch]$Both,
+    [ValidateSet("large-v3-turbo", "large-v3", "medium", "small")]
+    [string]$Model = "large-v3-turbo",
+    [switch]$SkipBuild,
     [switch]$KeepStaging
 )
 
@@ -62,68 +63,30 @@ if ($PSVersionTable.Platform -and $PSVersionTable.Platform -ne "Win32NT") {
 # --------------------------------------------------------------- version
 
 if (-not $Version) {
-    $described = & git -C $root describe --tags --abbrev=0 2>$null
-    $Version = if ($LASTEXITCODE -eq 0 -and $described) {
-        $described.Trim().TrimStart("v")
-    } else {
-        Get-Date -Format "yyyy.MM.dd"
-    }
-    $global:LASTEXITCODE = 0
+    $line = Select-String -Path (Join-Path $root "localstt\__init__.py") -Pattern '^__version__\s*=\s*"([^"]+)"' |
+        Select-Object -First 1
+    if (-not $line) { throw "No __version__ in localstt\__init__.py; pass -Version." }
+    $Version = $line.Matches[0].Groups[1].Value
 }
-# Both archives live on the same release, so the names have to differ.
-$suffix = if ($SkipCuda) { "-nocuda" } else { "" }
-$name = "LocalSTT-$Version-win64$suffix"
-
-if ($Both) {
-    # Running the script twice rather than building twice inside one run: each archive
-    # is then built by exactly the code path a single build uses.
-    & $PSCommandPath -Version $Version -Python $Python -KeepStaging:$KeepStaging
-    & $PSCommandPath -Version $Version -Python $Python -KeepStaging:$KeepStaging -SkipCuda
-    Write-Step "Both archives are in $(Join-Path $root 'dist')"
-    Get-ChildItem (Join-Path $root "dist") -Filter "*.zip" |
-        ForEach-Object { Write-Host ("    {0,-42} {1,8:N2} GB" -f $_.Name, ($_.Length / 1GB)) -ForegroundColor Gray }
-    exit 0
-}
-
+$name = "LocalSTT-$Version-win64"
 Write-Step "Building $name"
 
-# --------------------------------------------------------------- the interpreter to copy
+# --------------------------------------------------------------- build
 
-Write-Step "Choosing the Python to bundle"
-
-if (-not $Python) {
-    # The same search install.ps1 uses, and for the same reason: it runs each candidate
-    # before believing in it. Windows puts a Microsoft Store stub called python.exe on
-    # PATH that only prints an advert, and taking the first name that resolves finds
-    # that one.
-    $found = Find-LocalSttPython
-    if (-not $found) {
-        throw "No 64-bit Python 3.10 - 3.13 found. Pass -Python <path to python.exe>."
-    }
-    $Python = $found.Path
+if ($SkipBuild) {
+    Write-Note "Packaging the existing build in $(Get-LocalSttNativeDir)"
+} else {
+    # Compiles, bundles the runtime and runs the native tests; a failing test stops here.
+    & (Join-Path $root "native\build.ps1") -Model $Model
 }
 
-# A virtual environment is not copyable: its pyvenv.cfg points at the real installation
-# by absolute path. base_prefix is that installation, whichever was handed to us.
-$probe = "import sys;print(sys.base_prefix);print('{}.{}.{}'.format(*sys.version_info[:3]))"
-$answer = & $Python -c $probe
-if ($LASTEXITCODE -ne 0) {
-    throw "Could not run $Python. If that is the Microsoft Store stub, pass -Python with a real installation."
+# The executable has to report the version the archive is named after, or the update
+# check inside it would compare against the wrong number.
+$reported = & (Get-LocalSttNative -Console) --version
+if ("$reported" -notmatch [regex]::Escape("LocalSTT $Version ")) {
+    throw "localstt-cli.exe reports '$reported', not $Version. Rebuild, or pass the matching -Version."
 }
-$basePrefix, $pythonVersion = $answer
-
-if (-not (Test-Path (Join-Path $basePrefix "python.exe"))) {
-    throw "$basePrefix does not look like a Python installation."
-}
-Write-Ok "Python $pythonVersion from $basePrefix"
-
-# tkinter draws the settings window and the tray menu, and the embeddable distribution
-# leaves it out. Finding that at the user's first right-click is far too late.
-& (Join-Path $basePrefix "python.exe") -c "import tkinter" 2>$null
-if ($LASTEXITCODE -ne 0) {
-    throw "That Python has no tkinter. Use a python.org installation, not the embeddable package."
-}
-Write-Ok "tkinter present"
+Write-Ok "$reported"
 
 # --------------------------------------------------------------- staging
 
@@ -132,88 +95,81 @@ $stage = Join-Path $dist $name
 Write-Step "Staging in $stage"
 
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
-New-Item -ItemType Directory -Force -Path $stage | Out-Null
-
-$excludedDirs = @(".git", ".venv", "__pycache__", "Python312", "downloads", "dist",
-                  "diagnostics", ".pytest_cache", ".mypy_cache", ".ruff_cache")
-robocopy $root $stage /E /XD @excludedDirs /XF "*.pyc" /NFL /NDL /NJH /NJS /NP | Out-Null
-if ($LASTEXITCODE -ge 8) { throw "Copying the application failed (robocopy $LASTEXITCODE)" }
-$global:LASTEXITCODE = 0
-
-# Maintainer's tools; nothing in the archive should invite a user to rebuild it.
-Remove-Item (Join-Path $stage "build-release.ps1") -Force -ErrorAction SilentlyContinue
-Remove-Item (Join-Path $stage "docs\capture-screenshots.py") -Force -ErrorAction SilentlyContinue
+# The same copy install.ps1 -InstallTo makes, so the archive is an installed copy.
+# The shipped versions of the editable files, never this machine's edits.
+Copy-LocalSttApp -Destination $stage -Model $Model -ReplaceUserFiles
 Write-Ok "Application staged"
-
-robocopy $basePrefix (Join-Path $stage "python") /E /XD "__pycache__" /NFL /NDL /NJH /NJS /NP | Out-Null
-if ($LASTEXITCODE -ge 8) { throw "Copying Python failed (robocopy $LASTEXITCODE)" }
-$global:LASTEXITCODE = 0
-$stagedPython = Join-Path $stage "python\python.exe"
-Write-Ok "Python copied"
-
-# --------------------------------------------------------------- dependencies
-
-Write-Step "Installing the dependencies into the copy"
-
-& $stagedPython -m ensurepip --upgrade 2>$null | Out-Null
-$global:LASTEXITCODE = 0
-
-$files = @("requirements-lock.txt")
-if (-not $SkipCuda) { $files += "requirements-cuda-lock.txt" } else { Write-Warn "Leaving the NVIDIA wheels out." }
-foreach ($file in $files) {
-    Write-Note "From $file"
-    & $stagedPython -m pip install --no-warn-script-location -r (Join-Path $stage $file)
-    if ($LASTEXITCODE -ne 0) { throw "Installing $file failed" }
-}
 
 # --------------------------------------------------------------- check it actually runs
 
 Write-Step "Checking the bundle"
 
-Push-Location $stage
-try {
-    & $stagedPython -c "import localstt.config, localstt.backends, tkinter, pynput, pystray; print('imports resolve')"
-    if ($LASTEXITCODE -ne 0) { throw "The bundled Python cannot import LocalSTT and its dependencies" }
-    Write-Ok "Imports resolve inside the bundle"
-
-    # Reports on this machine, not the user's, so a failure here is worth seeing but is
-    # not a reason to refuse to build.
-    & $stagedPython -m localstt.preflight
-    if ($LASTEXITCODE -ne 0) { Write-Warn "The self-test failed on this machine -- see above." }
-} finally {
-    Pop-Location
+# A state folder of its own: the check must not read, or write into, this machine's
+# %APPDATA%\LocalSTT, and must not ship anything from it either.
+$probeState = Join-Path $dist "$name-probe-state"
+if (Test-Path $probeState) { Remove-Item $probeState -Recurse -Force }
+& (Join-Path $stage "localstt-cli.exe") --root $stage --state-dir $probeState --self-test | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    # Reports on this machine, not the user's: worth seeing, not a reason to refuse.
+    Write-Warn "The self-test failed on this machine. See $probeState\preflight.json."
+} else {
+    Write-Ok "The staged copy loads its model on the GPU without anything outside its folder"
+    Remove-Item $probeState -Recurse -Force
 }
-
-Get-ChildItem $stage -Recurse -Directory -Filter "__pycache__" -ErrorAction SilentlyContinue |
-    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-
-# The self-test writes to %APPDATA%, but a stray config in the archive would ship one
-# machine's settings to everyone.
-Remove-Item (Join-Path $stage "config.json") -Force -ErrorAction SilentlyContinue
+foreach ($stray in @("config.json", "preflight.json", "logs")) {
+    Remove-Item (Join-Path $stage $stray) -Recurse -Force -ErrorAction SilentlyContinue
+}
 
 # --------------------------------------------------------------- zip
 
 Write-Step "Compressing"
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$zip = Join-Path $dist "$name.zip"
-if (Test-Path $zip) { Remove-Item $zip -Force }
-[System.IO.Compression.ZipFile]::CreateFromDirectory(
-    $stage, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $true
+
+# The model leaves the staged application for an archive of its own. Its entries start
+# at models\, so unzipping it into the application folder puts the model where the
+# application looks for it.
+$modelName = "LocalSTT-model-$Model"
+$modelStage = Join-Path $dist $modelName
+$stagedModel = Join-Path $stage "models\ctranslate2\$Model"
+if (Test-Path $modelStage) { Remove-Item $modelStage -Recurse -Force }
+New-Item -ItemType Directory -Force -Path (Join-Path $modelStage "models\ctranslate2") | Out-Null
+Move-Item -LiteralPath $stagedModel -Destination (Join-Path $modelStage "models\ctranslate2\$Model")
+
+function New-Archive([string]$Source, [string]$Zip, [bool]$IncludeFolder) {
+    if (Test-Path $Zip) { Remove-Item $Zip -Force }
+    [System.IO.Compression.ZipFile]::CreateFromDirectory(
+        $Source, $Zip, [System.IO.Compression.CompressionLevel]::Optimal, $IncludeFolder
+    )
+    [pscustomobject]@{
+        Path     = $Zip
+        Size     = (Get-Item $Zip).Length / 1GB
+        Unpacked = (Get-ChildItem $Source -Recurse -File | Measure-Object Length -Sum).Sum / 1GB
+        Hash     = (Get-FileHash $Zip -Algorithm SHA256).Hash
+    }
+}
+$archives = @(
+    New-Archive $stage (Join-Path $dist "$name.zip") $true
+    New-Archive $modelStage (Join-Path $dist "$modelName.zip") $false
 )
 
-$size = (Get-Item $zip).Length / 1GB
-$unpacked = (Get-ChildItem $stage -Recurse -File | Measure-Object Length -Sum).Sum / 1GB
-$hash = (Get-FileHash $zip -Algorithm SHA256).Hash
-
-if (-not $KeepStaging) { Remove-Item $stage -Recurse -Force }
+if ($KeepStaging) {
+    # Back in place, so the staged folder can be tried as it is.
+    Move-Item -LiteralPath (Join-Path $modelStage "models\ctranslate2\$Model") -Destination $stagedModel
+} else {
+    Remove-Item $stage -Recurse -Force
+}
+Remove-Item $modelStage -Recurse -Force
 
 Write-Step "Done"
-Write-Host @"
-    $zip
-    zipped    $([math]::Round($size, 2)) GB
-    unpacked  $([math]::Round($unpacked, 2)) GB
-    sha256    $hash
-
-    GitHub refuses release assets over 2 GB.
+foreach ($archive in $archives) {
+    Write-Host @"
+    $($archive.Path)
+    zipped    $([math]::Round($archive.Size, 2)) GB
+    unpacked  $([math]::Round($archive.Unpacked, 2)) GB
+    sha256    $($archive.Hash)
 "@ -ForegroundColor Gray
+    if ($archive.Size -ge 2) {
+        Write-Warn "GitHub refuses release assets over 2 GB: $(Split-Path -Leaf $archive.Path)."
+    }
+}

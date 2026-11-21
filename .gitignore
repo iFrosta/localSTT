@@ -46,3 +46,16 @@ screenshots/
 Thumbs.db
 .idea/
 .vscode/
+
+# Native build output and downloaded dependencies
+build-native/
+native-install/
+native/downloads/
+native/runtime/
+native/runtime-ct2/
+native/models/
+native/vendor/
+native/test-state/
+native/*.obj
+native/ct2-probe/
+native/test-ui-state/
